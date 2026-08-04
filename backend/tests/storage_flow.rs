@@ -184,3 +184,25 @@ fn reports_install_and_restore_failures_and_leaves_a_recoverable_backup() {
     assert!(backup_path.exists());
     assert_eq!(load_chart_from(&path).unwrap(), Some(original));
 }
+
+#[test]
+fn writes_png_bytes_to_the_chosen_path() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("exports").join("chart.png");
+    let bytes = b"\x89PNG\r\n\x1a\nexample";
+
+    gantt_chart_creator_lib::storage::write_png_to(&path, bytes).unwrap();
+
+    assert_eq!(fs::read(path).unwrap(), bytes);
+}
+
+#[test]
+fn rejects_empty_png_bytes_without_creating_a_file() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.png");
+
+    let error = gantt_chart_creator_lib::storage::write_png_to(&path, &[]).unwrap_err();
+
+    assert!(error.to_string().contains("PNG data must not be empty"));
+    assert!(!path.exists());
+}

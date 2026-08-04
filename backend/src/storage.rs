@@ -8,6 +8,20 @@ use crate::chart_document::ChartDocument;
 
 pub type StorageResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+pub fn write_png_to(path: &Path, bytes: &[u8]) -> StorageResult<()> {
+    if bytes.is_empty() {
+        return Err(invalid_data("PNG data must not be empty".into()).into());
+    }
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, bytes)?;
+    Ok(())
+}
+
 pub fn load_chart_from(path: &Path) -> StorageResult<Option<ChartDocument>> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,

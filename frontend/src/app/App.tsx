@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Plus } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
 import { GanttChart } from "@/gantt/GanttChart";
 import { addCalendarDays } from "@/gantt/dateMath";
+import { svgToPngBytes } from "@/gantt/exportPng";
 import type { GanttTask } from "@/gantt/model";
 import { SettingsMenu } from "@/gantt/SettingsMenu";
 import { createStarterChart } from "@/gantt/starterChart";
 import { TaskEditorDialog } from "@/gantt/TaskEditorDialog";
 import { useAutosave } from "@/gantt/useAutosave";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
+import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridge";
 
 function createNewTask(startDate: string): GanttTask {
   return {
@@ -32,6 +34,9 @@ export function App() {
   const [previewTask, setPreviewTask] = useState<GanttTask | null>(null);
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [editingTask, setEditingTask] = useState<GanttTask | null>(null);
+  const [exportPhase, setExportPhase] = useState<"idle" | "preparing" | "exported" | "error">("idle");
+  const [exportError, setExportError] = useState("");
+  const exportSvgRef = useRef<SVGSVGElement>(null);
   const autosave = useAutosave(document, autosaveEnabled);
 
   useEffect(() => {
@@ -116,6 +121,32 @@ export function App() {
     closeTaskEditor();
   };
 
+  const exportPng = async () => {
+    if (exportPhase === "preparing") return;
+    const exportSvg = exportSvgRef.current;
+    if (!exportSvg) {
+      setExportError("The export chart is not ready.");
+      setExportPhase("error");
+      return;
+    }
+
+    setExportError("");
+    setExportPhase("preparing");
+    try {
+      const bytes = await svgToPngBytes(exportSvg, 2);
+      const path = await choosePngDestination(document.title);
+      if (!path) {
+        setExportPhase("idle");
+        return;
+      }
+      await writePng(path, bytes);
+      setExportPhase("exported");
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error));
+      setExportPhase("error");
+    }
+  };
+
   if (startupPhase === "loading") {
     return (
       <main className="app-shell">
@@ -156,6 +187,11 @@ export function App() {
               </>
             )}
           </div>
+          <div className="export-status" aria-live="polite">
+            {exportPhase === "preparing" && "Preparing PNG…"}
+            {exportPhase === "exported" && "PNG exported"}
+            {exportPhase === "error" && <span title={exportError}>Could not export PNG. Try again.</span>}
+          </div>
           <label className="chart-title-control">
             <span>Chart title</span>
             <input
@@ -169,7 +205,7 @@ export function App() {
             <Plus aria-hidden="true" />
             Add task
           </button>
-          <button type="button">
+          <button type="button" disabled={exportPhase === "preparing"} onClick={() => void exportPng()}>
             <Download aria-hidden="true" />
             Export PNG
           </button>
@@ -193,6 +229,12 @@ export function App() {
           />
         </div>
       </section>
+      <div
+        aria-hidden="true"
+        style={{ position: "fixed", left: "-100000px", top: 0, pointerEvents: "none" }}
+      >
+        <GanttChart ref={exportSvgRef} document={document} mode="export" selectedTaskId={null} />
+      </div>
       {dialogMode && editingTask && (
         <TaskEditorDialog
           mode={dialogMode}

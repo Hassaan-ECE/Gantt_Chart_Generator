@@ -1,3 +1,5 @@
+import { forwardRef } from "react";
+
 import { currentLocalIsoDate } from "@/gantt/starterChart";
 import {
   BAR_HEIGHT,
@@ -37,7 +39,7 @@ function withPreview(document: ChartDocument, previewTask?: GanttTask): ChartDoc
   };
 }
 
-export function GanttChart(props: GanttChartProps) {
+export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function GanttChart(props, ref) {
   const document = withPreview(props.document, props.previewTask);
   const today = currentLocalIsoDate();
   const layout = calculateChartLayout(document, today);
@@ -46,6 +48,7 @@ export function GanttChart(props: GanttChartProps) {
 
   return (
     <svg
+      ref={ref}
       className="gantt-chart"
       role="img"
       aria-label={`${document.title} Gantt chart`}
@@ -53,7 +56,7 @@ export function GanttChart(props: GanttChartProps) {
       width={layout.width}
       height={layout.height}
     >
-      <rect width={layout.width} height={layout.height} fill="#ffffff" />
+      <rect data-export-background="true" width={layout.width} height={layout.height} fill="#ffffff" />
       <text className="gantt-chart-title" x={20} y={27}>{document.title}</text>
       <text className="gantt-chart-label" x={20} y={51}>Task</text>
       {layout.visibleDates.map((date, index) => {
@@ -116,4 +119,4 @@ export function GanttChart(props: GanttChartProps) {
       </g>
     </svg>
   );
-}
+});
