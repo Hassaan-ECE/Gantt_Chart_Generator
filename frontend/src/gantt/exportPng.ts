@@ -1,5 +1,32 @@
 const WINDOWS_INVALID_FILENAME_CHARACTERS = /[<>:"/\\|?*]/g;
 const PNG_EXTENSION = /(?:\.png)+$/i;
+const WINDOWS_RESERVED_BASENAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const SVG_PRESENTATION_PROPERTIES = [
+  "alignment-baseline",
+  "dominant-baseline",
+  "fill",
+  "fill-opacity",
+  "fill-rule",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "letter-spacing",
+  "opacity",
+  "paint-order",
+  "shape-rendering",
+  "stroke",
+  "stroke-dasharray",
+  "stroke-dashoffset",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "stroke-miterlimit",
+  "stroke-opacity",
+  "stroke-width",
+  "text-anchor",
+  "text-rendering",
+  "vector-effect",
+] as const;
 
 function svgDimensions(source: SVGSVGElement): { width: number; height: number } {
   const width = Number(source.getAttribute("width"));
@@ -11,19 +38,41 @@ function svgDimensions(source: SVGSVGElement): { width: number; height: number }
 }
 
 export function sanitizeExportFilename(title: string): string {
-  const sanitized = title
+  const withoutControlCharacters = Array.from(title)
+    .filter((character) => character.charCodeAt(0) >= 32)
+    .join("");
+  const sanitized = withoutControlCharacters
     .replace(WINDOWS_INVALID_FILENAME_CHARACTERS, "")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/[. ]+$/g, "")
     .replace(PNG_EXTENSION, "")
     .replace(/[. ]+$/g, "");
-  return `${sanitized || "Gantt Chart"}.png`;
+  const safeBasename = WINDOWS_RESERVED_BASENAME.test(sanitized) ? "" : sanitized;
+  return `${safeBasename || "Gantt Chart"}.png`;
+}
+
+function inlineComputedPresentation(source: SVGSVGElement, clone: SVGSVGElement): void {
+  const sourceElements = [source, ...source.querySelectorAll<SVGElement>("*")];
+  const cloneElements = [clone, ...clone.querySelectorAll<SVGElement>("*")];
+  const view = source.ownerDocument.defaultView;
+  if (!view) return;
+
+  sourceElements.forEach((sourceElement, index) => {
+    const cloneElement = cloneElements[index];
+    if (!cloneElement) return;
+    const computedStyle = view.getComputedStyle(sourceElement);
+    SVG_PRESENTATION_PROPERTIES.forEach((property) => {
+      const value = computedStyle.getPropertyValue(property);
+      if (value) cloneElement.style.setProperty(property, value);
+    });
+  });
 }
 
 export function prepareExportSvg(source: SVGSVGElement): SVGSVGElement {
   const { width, height } = svgDimensions(source);
   const clone = source.cloneNode(true) as SVGSVGElement;
+  inlineComputedPresentation(source, clone);
   clone.querySelectorAll("[data-editor-only='true']").forEach((node) => node.remove());
   clone.setAttribute("viewBox", `0 0 ${width} ${height}`);
   clone.setAttribute("width", String(width));

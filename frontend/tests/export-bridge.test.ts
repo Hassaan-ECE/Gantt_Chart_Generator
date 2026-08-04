@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -76,5 +76,85 @@ describe("PNG export bridge", () => {
       path: "C:\\Exports\\chart.png",
       bytes: [137, 80, 78, 71],
     });
+  });
+
+  it("ignores duplicate export clicks while rasterization is in progress", async () => {
+    let finishRasterization: ((bytes: Uint8Array) => void) | undefined;
+    vi.mocked(svgToPngBytes).mockImplementation(() => new Promise((resolve) => {
+      finishRasterization = resolve;
+    }));
+    render(createElement(App));
+    const exportButton = await screen.findByRole("button", { name: "Export PNG" });
+
+    act(() => {
+      fireEvent.click(exportButton);
+      fireEvent.click(exportButton);
+    });
+
+    expect(svgToPngBytes).toHaveBeenCalledTimes(1);
+    finishRasterization?.(new Uint8Array([137, 80, 78, 71]));
+    await waitFor(() => expect(exportButton).toBeEnabled());
+  });
+
+  it("returns to idle when the native destination dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(createElement(App));
+
+    const exportButton = await screen.findByRole("button", { name: "Export PNG" });
+    await user.click(exportButton);
+
+    expect(svgToPngBytes).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.queryByText("Preparing PNG…")).not.toBeInTheDocument();
+    expect(screen.queryByText("PNG exported")).not.toBeInTheDocument();
+    expect(screen.queryByText("Could not export PNG")).not.toBeInTheDocument();
+    expect(exportButton).toBeEnabled();
+  });
+
+  it("offers a visible retry that exports the latest chart after rasterization fails", async () => {
+    const user = userEvent.setup();
+    const exportedTitles: string[] = [];
+    vi.mocked(svgToPngBytes)
+      .mockImplementationOnce(async (svg) => {
+        exportedTitles.push(svg.querySelector(".gantt-chart-title")?.textContent ?? "");
+        throw new Error("canvas failed");
+      })
+      .mockImplementationOnce(async (svg) => {
+        exportedTitles.push(svg.querySelector(".gantt-chart-title")?.textContent ?? "");
+        return new Uint8Array([137, 80, 78, 71]);
+      });
+    vi.mocked(save).mockResolvedValue("C:\\Exports\\latest.png");
+    render(createElement(App));
+
+    await user.click(await screen.findByRole("button", { name: "Export PNG" }));
+    const retryButton = await screen.findByRole("button", { name: "Retry export" });
+    expect(screen.getByText("Could not export PNG")).toHaveAttribute("title", "canvas failed");
+    expect(save).not.toHaveBeenCalled();
+
+    const title = screen.getByRole("textbox", { name: "Chart title" });
+    await user.clear(title);
+    await user.type(title, "Latest Roadmap");
+    await user.click(retryButton);
+
+    expect(exportedTitles).toEqual(["Execution Timeline", "Latest Roadmap"]);
+    expect(save).toHaveBeenCalledWith({
+      defaultPath: "Latest Roadmap.png",
+      filters: [{ name: "PNG image", extensions: ["png"] }],
+    });
+    expect(await screen.findByText("PNG exported")).toBeVisible();
+  });
+
+  it("shows a retryable error when native PNG writing fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(save).mockResolvedValue("C:\\Exports\\chart.png");
+    vi.mocked(invoke).mockRejectedValue(new Error("disk full"));
+    render(createElement(App));
+
+    await user.click(await screen.findByRole("button", { name: "Export PNG" }));
+
+    expect(await screen.findByText("Could not export PNG")).toHaveAttribute("title", "disk full");
+    expect(screen.getByRole("button", { name: "Retry export" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Export PNG" })).toBeEnabled();
   });
 });

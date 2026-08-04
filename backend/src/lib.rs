@@ -46,3 +46,33 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running Gantt Chart Creator");
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::write_png;
+
+    #[test]
+    fn write_png_command_accepts_a_case_insensitive_png_extension() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("chart.PNG");
+        let bytes = b"\x89PNG\r\n\x1a\nexample";
+
+        write_png(path.to_string_lossy().into_owned(), bytes.to_vec()).unwrap();
+
+        assert_eq!(fs::read(path).unwrap(), bytes);
+    }
+
+    #[test]
+    fn write_png_command_rejects_a_non_png_path_without_writing() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("chart.jpg");
+
+        let error =
+            write_png(path.to_string_lossy().into_owned(), b"not a png".to_vec()).unwrap_err();
+
+        assert_eq!(error, "PNG export path must have a .png extension");
+        assert!(!path.exists());
+    }
+}

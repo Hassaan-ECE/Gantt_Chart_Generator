@@ -37,6 +37,7 @@ export function App() {
   const [exportPhase, setExportPhase] = useState<"idle" | "preparing" | "exported" | "error">("idle");
   const [exportError, setExportError] = useState("");
   const exportSvgRef = useRef<SVGSVGElement>(null);
+  const exportInProgressRef = useRef(false);
   const autosave = useAutosave(document, autosaveEnabled);
 
   useEffect(() => {
@@ -122,7 +123,7 @@ export function App() {
   };
 
   const exportPng = async () => {
-    if (exportPhase === "preparing") return;
+    if (exportInProgressRef.current) return;
     const exportSvg = exportSvgRef.current;
     if (!exportSvg) {
       setExportError("The export chart is not ready.");
@@ -130,6 +131,7 @@ export function App() {
       return;
     }
 
+    exportInProgressRef.current = true;
     setExportError("");
     setExportPhase("preparing");
     try {
@@ -144,6 +146,8 @@ export function App() {
     } catch (error) {
       setExportError(error instanceof Error ? error.message : String(error));
       setExportPhase("error");
+    } finally {
+      exportInProgressRef.current = false;
     }
   };
 
@@ -190,7 +194,12 @@ export function App() {
           <div className="export-status" aria-live="polite">
             {exportPhase === "preparing" && "Preparing PNG…"}
             {exportPhase === "exported" && "PNG exported"}
-            {exportPhase === "error" && <span title={exportError}>Could not export PNG. Try again.</span>}
+            {exportPhase === "error" && (
+              <>
+                <span title={exportError}>Could not export PNG</span>
+                <button type="button" onClick={() => void exportPng()}>Retry export</button>
+              </>
+            )}
           </div>
           <label className="chart-title-control">
             <span>Chart title</span>
