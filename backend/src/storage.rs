@@ -11,15 +11,35 @@ pub type StorageResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 pub fn load_chart_from(path: &Path) -> StorageResult<Option<ChartDocument>> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let backup_path = suffixed_path(path, ".backup");
+            match fs::read(&backup_path) {
+                Ok(bytes) => {
+                    let document = parse_chart(&bytes)?;
+                    fs::rename(backup_path, path)?;
+                    return Ok(Some(document));
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+                Err(error) => return Err(error.into()),
+            }
+        }
         Err(error) => return Err(error.into()),
     };
-    let document: ChartDocument = serde_json::from_slice(&bytes)?;
-    document.validate().map_err(invalid_data)?;
-    Ok(Some(document))
+    Ok(Some(parse_chart(&bytes)?))
 }
 
 pub fn save_chart_to(path: &Path, document: &ChartDocument) -> StorageResult<()> {
+    save_chart_to_with_rename(path, document, |from, to| fs::rename(from, to))
+}
+
+pub fn save_chart_to_with_rename<F>(
+    path: &Path,
+    document: &ChartDocument,
+    mut rename_file: F,
+) -> StorageResult<()>
+where
+    F: FnMut(&Path, &Path) -> io::Result<()>,
+{
     document.validate().map_err(invalid_data)?;
     if let Some(parent) = path
         .parent()
@@ -40,27 +60,32 @@ pub fn save_chart_to(path: &Path, document: &ChartDocument) -> StorageResult<()>
     temp_file.sync_all()?;
     drop(temp_file);
 
-    let had_target = match fs::metadata(path) {
-        Ok(_) => true,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-        Err(error) => return Err(error.into()),
-    };
+    let had_target = path_exists(path)?;
+    let had_backup = path_exists(&backup_path)?;
 
     if had_target {
-        if backup_path.exists() {
+        if had_backup {
             fs::remove_file(&backup_path)?;
         }
-        fs::rename(path, &backup_path)?;
+        rename_file(path, &backup_path)?;
     }
 
-    if let Err(error) = fs::rename(&temp_path, path) {
+    if let Err(install_error) = rename_file(&temp_path, path) {
         if had_target {
-            let _ = fs::rename(&backup_path, path);
+            if let Err(restore_error) = rename_file(&backup_path, path) {
+                return Err(io::Error::other(format!(
+                    "failed to install chart replacement: {install_error}; failed to restore previous chart: {restore_error}"
+                ))
+                .into());
+            }
         }
-        return Err(error.into());
+        return Err(io::Error::other(format!(
+            "failed to install chart replacement: {install_error}"
+        ))
+        .into());
     }
 
-    if had_target {
+    if had_target || had_backup {
         fs::remove_file(backup_path)?;
     }
     Ok(())
@@ -68,6 +93,20 @@ pub fn save_chart_to(path: &Path, document: &ChartDocument) -> StorageResult<()>
 
 fn invalid_data(message: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
+}
+
+fn parse_chart(bytes: &[u8]) -> StorageResult<ChartDocument> {
+    let document: ChartDocument = serde_json::from_slice(bytes)?;
+    document.validate().map_err(invalid_data)?;
+    Ok(document)
+}
+
+fn path_exists(path: &Path) -> io::Result<bool> {
+    match fs::metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 fn suffixed_path(path: &Path, suffix: &str) -> PathBuf {

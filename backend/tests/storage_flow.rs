@@ -1,7 +1,7 @@
 use std::fs;
 
 use gantt_chart_creator_lib::chart_document::{ChartDocument, ChartSettings, GanttTask};
-use gantt_chart_creator_lib::storage::{load_chart_from, save_chart_to};
+use gantt_chart_creator_lib::storage::{load_chart_from, save_chart_to, save_chart_to_with_rename};
 
 fn sample() -> ChartDocument {
     ChartDocument {
@@ -82,4 +82,105 @@ fn invalid_documents_are_rejected_before_writing() {
         assert!(save_chart_to(&path, &document).is_err());
         assert!(!path.exists());
     }
+}
+
+#[test]
+fn semantic_invalid_dates_are_rejected_without_modifying_the_source() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let mut invalid = sample();
+    invalid.tasks[0].start_date = "2026-02-31".into();
+    invalid.tasks[0].end_date = "2026-03-01".into();
+    let source = serde_json::to_vec_pretty(&invalid).unwrap();
+    fs::write(&path, &source).unwrap();
+
+    assert!(load_chart_from(&path).is_err());
+    assert_eq!(fs::read(&path).unwrap(), source);
+
+    let valid_source = serde_json::to_vec_pretty(&sample()).unwrap();
+    fs::write(&path, &valid_source).unwrap();
+    assert!(save_chart_to(&path, &invalid).is_err());
+    assert_eq!(fs::read(&path).unwrap(), valid_source);
+}
+
+#[test]
+fn overwrites_an_existing_chart_without_leaving_replacement_files() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let mut replacement = sample();
+    replacement.title = "Updated timeline".into();
+
+    save_chart_to(&path, &sample()).unwrap();
+    save_chart_to(&path, &replacement).unwrap();
+
+    assert_eq!(load_chart_from(&path).unwrap(), Some(replacement));
+    assert!(!root.path().join("chart.json.tmp").exists());
+    assert!(!root.path().join("chart.json.backup").exists());
+}
+
+#[test]
+fn recovers_a_valid_backup_when_the_target_is_missing() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let backup_path = root.path().join("chart.json.backup");
+    fs::write(&backup_path, serde_json::to_vec_pretty(&sample()).unwrap()).unwrap();
+
+    assert_eq!(load_chart_from(&path).unwrap(), Some(sample()));
+    assert!(path.exists());
+    assert!(!backup_path.exists());
+}
+
+#[test]
+fn restores_the_existing_chart_when_installing_the_replacement_fails() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let temp_path = root.path().join("chart.json.tmp");
+    let backup_path = root.path().join("chart.json.backup");
+    let original = sample();
+    let mut replacement = sample();
+    replacement.title = "Replacement".into();
+    save_chart_to(&path, &original).unwrap();
+
+    let error = save_chart_to_with_rename(&path, &replacement, |from, to| {
+        if from == temp_path {
+            Err(std::io::Error::other("install failure"))
+        } else {
+            fs::rename(from, to)
+        }
+    })
+    .unwrap_err();
+
+    assert!(error.to_string().contains("install failure"));
+    assert_eq!(load_chart_from(&path).unwrap(), Some(original));
+    assert!(!backup_path.exists());
+}
+
+#[test]
+fn reports_install_and_restore_failures_and_leaves_a_recoverable_backup() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let temp_path = root.path().join("chart.json.tmp");
+    let backup_path = root.path().join("chart.json.backup");
+    let original = sample();
+    let mut replacement = sample();
+    replacement.title = "Replacement".into();
+    save_chart_to(&path, &original).unwrap();
+
+    let error = save_chart_to_with_rename(&path, &replacement, |from, to| {
+        if from == temp_path {
+            Err(std::io::Error::other("install failure"))
+        } else if from == backup_path {
+            Err(std::io::Error::other("restore failure"))
+        } else {
+            fs::rename(from, to)
+        }
+    })
+    .unwrap_err();
+    let message = error.to_string();
+
+    assert!(message.contains("install failure"));
+    assert!(message.contains("restore failure"));
+    assert!(!path.exists());
+    assert!(backup_path.exists());
+    assert_eq!(load_chart_from(&path).unwrap(), Some(original));
 }
