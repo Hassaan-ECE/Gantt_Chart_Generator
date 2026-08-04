@@ -30,6 +30,20 @@ describe("PNG export preparation", () => {
     },
   );
 
+  it.each(["COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³"])(
+    "replaces the reserved Windows superscript device basename %s",
+    (title) => {
+      expect(sanitizeExportFilename(title)).toBe("Gantt Chart.png");
+    },
+  );
+
+  it.each(["COM¹.roadmap", "COM².txt", "COM³.PNG", "LPT¹.roadmap", "LPT².txt", "LPT³.PNG"])(
+    "replaces the reserved Windows superscript device basename with extension %s",
+    (title) => {
+      expect(sanitizeExportFilename(title)).toBe("Gantt Chart.png");
+    },
+  );
+
   it("removes editor-only elements and fixes a white background", () => {
     document.body.innerHTML = `<svg width="800" height="400"><rect data-export-background="true" fill="transparent"/><g data-editor-only="true"><circle/></g><text>Task</text></svg>`;
     const source = document.querySelector("svg")!;
@@ -41,6 +55,24 @@ describe("PNG export preparation", () => {
     expect(result.getAttribute("viewBox")).toBe("0 0 800 400");
     expect(result.getAttribute("width")).toBe("800");
     expect(result.getAttribute("height")).toBe("400");
+  });
+
+  it("overrides an inlined computed background fill with effective white", () => {
+    document.head.insertAdjacentHTML("beforeend", `
+      <style data-export-test-style>.transparent-export-background { fill: transparent; }</style>
+    `);
+    document.body.innerHTML = `
+      <svg width="800" height="400">
+        <rect data-export-background="true" class="transparent-export-background" width="800" height="400"/>
+      </svg>
+    `;
+
+    const result = prepareExportSvg(document.querySelector("svg")!);
+    const background = result.querySelector<SVGRectElement>("[data-export-background='true']")!;
+    const serialized = new XMLSerializer().serializeToString(result);
+
+    expect(background.style.fill).toBe("rgb(255, 255, 255)");
+    expect(serialized).toContain("fill: rgb(255, 255, 255)");
   });
 
   it("inlines stylesheet-driven SVG presentation values before serialization", () => {

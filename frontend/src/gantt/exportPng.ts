@@ -1,6 +1,6 @@
 const WINDOWS_INVALID_FILENAME_CHARACTERS = /[<>:"/\\|?*]/g;
 const PNG_EXTENSION = /(?:\.png)+$/i;
-const WINDOWS_RESERVED_BASENAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const WINDOWS_RESERVED_BASENAME = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
 const SVG_PRESENTATION_PROPERTIES = [
   "alignment-baseline",
   "dominant-baseline",
@@ -77,7 +77,9 @@ export function prepareExportSvg(source: SVGSVGElement): SVGSVGElement {
   clone.setAttribute("viewBox", `0 0 ${width} ${height}`);
   clone.setAttribute("width", String(width));
   clone.setAttribute("height", String(height));
-  clone.querySelector("[data-export-background='true']")?.setAttribute("fill", "#ffffff");
+  const background = clone.querySelector<SVGElement>("[data-export-background='true']");
+  background?.setAttribute("fill", "#ffffff");
+  background?.style.setProperty("fill", "#ffffff");
   return clone;
 }
 
