@@ -45,6 +45,8 @@ export function useBarDrag({ task, kind, dayWidth, settings, onPreviewTask, onCo
   };
 
   const onPointerDown = (event: SvgPointerEvent) => {
+    if (activeDrag.current) return;
+
     event.currentTarget.setPointerCapture(event.pointerId);
     activeDrag.current = {
       pointerId: event.pointerId,
@@ -88,8 +90,10 @@ export function useBarDrag({ task, kind, dayWidth, settings, onPreviewTask, onCo
     releasePointerCapture(event.currentTarget, event.pointerId);
   };
 
-  const onLostPointerCapture = () => {
-    if (!activeDrag.current) return;
+  const onLostPointerCapture = (event: SvgPointerEvent) => {
+    const drag = activeDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
     clearPreview();
   };
 
