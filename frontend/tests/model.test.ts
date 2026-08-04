@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { parseChartDocument } from "@/gantt/model";
+import { isValidIsoDate, parseChartDocument } from "@/gantt/model";
 import { createStarterChart, currentLocalIsoDate } from "@/gantt/starterChart";
 
 describe("chart document validation", () => {
+  it.each(["2026-02-30", "2026-8-04", "not-a-date"])("rejects invalid ISO date %s", (value) => {
+    expect(isValidIsoDate(value)).toBe(false);
+  });
+
   it("accepts a valid schema version 1 document", () => {
     const value = parseChartDocument({
       schemaVersion: 1,

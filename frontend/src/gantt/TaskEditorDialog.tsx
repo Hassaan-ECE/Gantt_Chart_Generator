@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { GanttTask } from "@/gantt/model";
+import { isValidIsoDate, type GanttTask } from "@/gantt/model";
 
 export interface TaskEditorDialogProps {
   mode: "create" | "edit";
@@ -17,15 +17,17 @@ function validateTask(task: GanttTask): FieldErrors {
   if (!task.name.trim()) errors.name = "Task name is required.";
   if (!task.category.trim()) errors.category = "Category is required.";
   if (!/^#[0-9a-f]{6}$/i.test(task.color)) errors.color = "Color must be a six-digit hex value.";
-  if (!task.startDate) errors.startDate = "Start date is required.";
-  if (!task.endDate) errors.endDate = "End date is required.";
-  if (task.startDate && task.endDate && task.endDate < task.startDate) {
+  if (!isValidIsoDate(task.startDate)) errors.startDate = "Start date must use a valid YYYY-MM-DD value.";
+  if (!isValidIsoDate(task.endDate)) errors.endDate = "End date must use a valid YYYY-MM-DD value.";
+  if (isValidIsoDate(task.startDate) && isValidIsoDate(task.endDate) && task.endDate < task.startDate) {
     errors.endDate = "End date cannot be before start date.";
   }
   return errors;
 }
 
 export function TaskEditorDialog({ mode, task, onSave, onCancel, onDelete }: TaskEditorDialogProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<GanttTask>(task);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -36,7 +38,19 @@ export function TaskEditorDialog({ mode, task, onSave, onCancel, onDelete }: Tas
     setConfirmDelete(false);
   }, [task]);
 
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.open = true;
+    nameInputRef.current?.focus();
+    return () => {
+      if (dialog.open && typeof dialog.close === "function") dialog.close();
+    };
+  }, []);
+
   useEffect(() => {
+    if (typeof dialogRef.current?.showModal === "function") return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onCancel();
     };
@@ -60,12 +74,12 @@ export function TaskEditorDialog({ mode, task, onSave, onCancel, onDelete }: Tas
   };
 
   return (
-    <dialog className="task-editor-dialog" open aria-labelledby="task-editor-title" onCancel={(event) => { event.preventDefault(); onCancel(); }}>
+    <dialog ref={dialogRef} className="task-editor-dialog" aria-labelledby="task-editor-title" onCancel={(event) => { event.preventDefault(); onCancel(); }}>
       <form onSubmit={(event) => { event.preventDefault(); save(); }}>
         <h2 id="task-editor-title">{mode === "create" ? "Add task" : "Edit task"}</h2>
         <label>
           Task name
-          <input aria-invalid={Boolean(errors.name)} value={draft.name} onChange={(event) => updateField("name", event.target.value)} />
+          <input ref={nameInputRef} aria-invalid={Boolean(errors.name)} value={draft.name} onChange={(event) => updateField("name", event.target.value)} />
         </label>
         {errors.name && <p className="form-error">{errors.name}</p>}
         <label>
