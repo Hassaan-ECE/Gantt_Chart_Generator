@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { Download, Plus, Settings } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
+import { GanttChart } from "@/gantt/GanttChart";
+import { createStarterChart } from "@/gantt/starterChart";
 
 export function App() {
+  const [document] = useState(() => createStarterChart());
+
   return (
     <main className="app-shell">
       <header className="toolbar">
@@ -21,7 +26,11 @@ export function App() {
           </button>
         </div>
       </header>
-      <section className="chart-surface" aria-label="Gantt chart workspace" />
+      <section className="chart-surface" aria-label="Gantt chart workspace">
+        <div className="chart-viewport">
+          <GanttChart document={document} mode="editor" selectedTaskId={null} />
+        </div>
+      </section>
     </main>
   );
 }
