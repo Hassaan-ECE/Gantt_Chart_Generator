@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
@@ -8,6 +8,8 @@ import type { GanttTask } from "@/gantt/model";
 import { SettingsMenu } from "@/gantt/SettingsMenu";
 import { createStarterChart } from "@/gantt/starterChart";
 import { TaskEditorDialog } from "@/gantt/TaskEditorDialog";
+import { useAutosave } from "@/gantt/useAutosave";
+import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
 
 function createNewTask(startDate: string): GanttTask {
   return {
@@ -22,10 +24,52 @@ function createNewTask(startDate: string): GanttTask {
 
 export function App() {
   const [document, setDocument] = useState(() => createStarterChart());
+  const [startupPhase, setStartupPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [startupError, setStartupError] = useState("");
+  const [autosaveEnabled, setAutosaveEnabled] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [previewTask, setPreviewTask] = useState<GanttTask | null>(null);
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [editingTask, setEditingTask] = useState<GanttTask | null>(null);
+  const autosave = useAutosave(document, autosaveEnabled);
+
+  useEffect(() => {
+    let active = true;
+    void loadChart()
+      .then((loadedDocument) => {
+        if (!active) return;
+        setDocument(loadedDocument ?? createStarterChart());
+        setStartupPhase("ready");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setStartupError(error instanceof Error ? error.message : String(error));
+        setStartupPhase("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (startupPhase === "ready") setAutosaveEnabled(true);
+  }, [startupPhase]);
+
+  const resetToStarterChart = async () => {
+    const starterDocument = createStarterChart();
+    setResetting(true);
+    try {
+      await saveChart(starterDocument);
+      setDocument(starterDocument);
+      setStartupError("");
+      setStartupPhase("ready");
+    } catch (error) {
+      setStartupError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const commitTask = (task: GanttTask) => {
     setDocument((currentDocument) => ({
@@ -72,11 +116,46 @@ export function App() {
     closeTaskEditor();
   };
 
+  if (startupPhase === "loading") {
+    return (
+      <main className="app-shell">
+        <section className="recovery-panel" role="status">
+          <h1>{APP_DISPLAY_NAME}</h1>
+          <p>Loading chart…</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (startupPhase === "error") {
+    return (
+      <main className="app-shell">
+        <section className="recovery-panel" role="alert">
+          <h1>Could not load chart</h1>
+          <p>{startupError}</p>
+          <button type="button" disabled={resetting} onClick={() => void resetToStarterChart()}>
+            Reset to starter chart
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="toolbar">
         <h1>{APP_DISPLAY_NAME}</h1>
         <div className="toolbar-actions">
+          <div className="autosave-status" aria-live="polite">
+            {autosave.phase === "saving" && "Saving…"}
+            {autosave.phase === "saved" && "Saved"}
+            {autosave.phase === "error" && (
+              <>
+                <span title={autosave.message}>Could not save</span>
+                <button type="button" onClick={autosave.retry}>Retry</button>
+              </>
+            )}
+          </div>
           <label className="chart-title-control">
             <span>Chart title</span>
             <input
