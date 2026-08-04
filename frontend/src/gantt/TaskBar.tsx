@@ -1,16 +1,22 @@
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
+import { DAY_WIDTH } from "@/gantt/layout";
 import type { TaskGeometry } from "@/gantt/layout";
+import type { ChartSettings, GanttTask } from "@/gantt/model";
+import { useBarDrag } from "@/gantt/useBarDrag";
 
 interface TaskBarProps {
   geometry: TaskGeometry;
   mode: "editor" | "export";
   selected: boolean;
+  settings: ChartSettings;
   onSelectTask?: (taskId: string) => void;
   onEditTask?: (taskId: string) => void;
+  onPreviewTask?: (task: GanttTask | null) => void;
+  onCommitTask?: (task: GanttTask) => void;
 }
 
-export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: TaskBarProps) {
+export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEditTask, onPreviewTask, onCommitTask }: TaskBarProps) {
   const handleWidth = 10;
   const isEditor = mode === "editor";
   const onClick = () => onSelectTask?.(geometry.id);
@@ -25,6 +31,31 @@ export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: 
       onDoubleClick();
     }
   };
+  const moveDrag = useBarDrag({
+    task: geometry.task,
+    kind: "move",
+    dayWidth: DAY_WIDTH,
+    settings,
+    onPreviewTask,
+    onCommitTask,
+  });
+  const startResizeDrag = useBarDrag({
+    task: geometry.task,
+    kind: "resize-start",
+    dayWidth: DAY_WIDTH,
+    settings,
+    onPreviewTask,
+    onCommitTask,
+  });
+  const endResizeDrag = useBarDrag({
+    task: geometry.task,
+    kind: "resize-end",
+    dayWidth: DAY_WIDTH,
+    settings,
+    onPreviewTask,
+    onCommitTask,
+  });
+  const stopHandlePropagation = (event: MouseEvent<SVGRectElement>) => event.stopPropagation();
 
   return (
     <g
@@ -55,6 +86,13 @@ export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: 
         height={geometry.height}
         rx={6}
         fill={geometry.task.color}
+        className={isEditor ? "gantt-task-bar gantt-task-bar--interactive" : "gantt-task-bar"}
+        style={isEditor ? { cursor: moveDrag.isDragging ? "grabbing" : "grab", touchAction: "none" } : undefined}
+        onPointerDown={isEditor ? moveDrag.onPointerDown : undefined}
+        onPointerMove={isEditor ? moveDrag.onPointerMove : undefined}
+        onPointerUp={isEditor ? moveDrag.onPointerUp : undefined}
+        onPointerCancel={isEditor ? moveDrag.onPointerCancel : undefined}
+        onLostPointerCapture={isEditor ? moveDrag.onLostPointerCapture : undefined}
       />
       {isEditor && selected && (
         <>
@@ -66,6 +104,15 @@ export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: 
             height={geometry.height}
             rx={4}
             fill="rgba(255, 255, 255, 0.72)"
+            className="gantt-resize-handle"
+            style={{ cursor: "ew-resize", touchAction: "none" }}
+            onClick={stopHandlePropagation}
+            onDoubleClick={stopHandlePropagation}
+            onPointerDown={startResizeDrag.onPointerDown}
+            onPointerMove={startResizeDrag.onPointerMove}
+            onPointerUp={startResizeDrag.onPointerUp}
+            onPointerCancel={startResizeDrag.onPointerCancel}
+            onLostPointerCapture={startResizeDrag.onLostPointerCapture}
           />
           <rect
             data-testid="resize-handle"
@@ -75,6 +122,15 @@ export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: 
             height={geometry.height}
             rx={4}
             fill="rgba(255, 255, 255, 0.72)"
+            className="gantt-resize-handle"
+            style={{ cursor: "ew-resize", touchAction: "none" }}
+            onClick={stopHandlePropagation}
+            onDoubleClick={stopHandlePropagation}
+            onPointerDown={endResizeDrag.onPointerDown}
+            onPointerMove={endResizeDrag.onPointerMove}
+            onPointerUp={endResizeDrag.onPointerUp}
+            onPointerCancel={endResizeDrag.onPointerCancel}
+            onLostPointerCapture={endResizeDrag.onLostPointerCapture}
           />
         </>
       )}

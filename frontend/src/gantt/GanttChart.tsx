@@ -95,8 +95,11 @@ export function GanttChart(props: GanttChartProps) {
             geometry={geometry}
             mode={props.mode}
             selected={props.selectedTaskId === geometry.id}
+            settings={document.settings}
             onSelectTask={props.onSelectTask}
             onEditTask={props.onEditTask}
+            onPreviewTask={props.onPreviewTask}
+            onCommitTask={props.onCommitTask}
           />
         </g>
       ))}

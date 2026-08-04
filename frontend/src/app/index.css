@@ -136,3 +136,8 @@ button {
   stroke: #ef4444;
   stroke-width: 2;
 }
+
+.gantt-task-bar--interactive,
+.gantt-resize-handle {
+  touch-action: none;
+}
