@@ -60,6 +60,16 @@ describe("chart document validation", () => {
     expect(chart.tasks[0].startDate).toBe("2026-08-10");
   });
 
+  it("creates fresh settings for each starter chart", () => {
+    const firstChart = createStarterChart("2026-08-04");
+    firstChart.settings.showSaturday = true;
+
+    expect(createStarterChart("2026-08-04").settings).toEqual({
+      showSaturday: false,
+      showSunday: false,
+    });
+  });
+
   it("formats the local calendar date without persisting a Date object", () => {
     expect(currentLocalIsoDate(new Date(2026, 7, 4))).toBe("2026-08-04");
   });

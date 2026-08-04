@@ -23,7 +23,7 @@ export function createStarterChart(today = currentLocalIsoDate()): ChartDocument
   return {
     schemaVersion: CHART_SCHEMA_VERSION,
     title: "Execution Timeline",
-    settings: DEFAULT_SETTINGS,
+    settings: { ...DEFAULT_SETTINGS },
     tasks: [
       task("starter-assembly", "Assemble two units using calibrated meters", 0, 1, "IRHX", "#00b95a"),
       task("starter-testing", "Support PCS testing", 0, 5, "PCS Testing", "#8757ed"),
