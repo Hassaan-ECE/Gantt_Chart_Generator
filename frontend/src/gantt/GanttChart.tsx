@@ -62,13 +62,10 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
       {layout.visibleDates.map((date, index) => {
         const x = LABEL_WIDTH + index * DAY_WIDTH;
         const weekday = formatWeekday(date);
-        const repeatsWeekday = layout.visibleDates
-          .slice(0, index)
-          .some((previousDate) => formatWeekday(previousDate) === weekday);
         return (
           <g key={date}>
             <line className="gantt-grid-line" x1={x} y1={0} x2={x} y2={gridBottom} />
-            <text className="gantt-date-weekday" x={x + DAY_WIDTH / 2} y={27}>{repeatsWeekday ? "" : weekday}</text>
+            <text className="gantt-date-weekday" x={x + DAY_WIDTH / 2} y={27}>{weekday}</text>
             <text className="gantt-date-value" x={x + DAY_WIDTH / 2} y={51}>{formatDate(date)}</text>
           </g>
         );
@@ -76,13 +73,20 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
       <line className="gantt-grid-line" x1={layout.width} y1={0} x2={layout.width} y2={gridBottom} />
       <line className="gantt-grid-line" x1={0} y1={HEADER_HEIGHT} x2={layout.width} y2={HEADER_HEIGHT} />
       {todayIndex >= 0 && (
-        <line
-          className="gantt-today-marker"
-          x1={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2}
-          y1={HEADER_HEIGHT}
-          x2={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2}
-          y2={gridBottom}
-        />
+        <g className="gantt-today">
+          <line
+            className="gantt-today-marker"
+            x1={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2}
+            y1={HEADER_HEIGHT}
+            x2={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2}
+            y2={gridBottom}
+          />
+          <text
+            className="gantt-today-label"
+            x={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2 + 5}
+            y={HEADER_HEIGHT - 4}
+          >Today</text>
+        </g>
       )}
       {layout.tasks.map((geometry, index) => (
         <g key={geometry.id} data-testid="task-row">

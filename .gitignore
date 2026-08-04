@@ -5,5 +5,8 @@ frontend/dist/
 frontend/node_modules/
 backend/target/
 backend/gen/
+coverage/
+.vite/
+*.log
 *.tsbuildinfo
 .DS_Store

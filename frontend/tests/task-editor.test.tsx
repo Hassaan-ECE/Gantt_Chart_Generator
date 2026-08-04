@@ -90,4 +90,17 @@ describe("TaskEditorDialog", () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(onDelete).not.toHaveBeenCalled();
   });
+
+  it("requires confirmation before deleting the task", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<TaskEditorDialog mode="edit" task={task} onSave={vi.fn()} onCancel={vi.fn()} onDelete={onDelete} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete task" }));
+    expect(screen.getByText("Delete this task?")).toBeVisible();
+    expect(onDelete).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledExactlyOnceWith("task-1");
+  });
 });

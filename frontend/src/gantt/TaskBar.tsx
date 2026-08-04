@@ -86,6 +86,8 @@ export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEd
         height={geometry.height}
         rx={6}
         fill={geometry.task.color}
+        stroke={isEditor && selected ? "#1d4ed8" : undefined}
+        strokeWidth={isEditor && selected ? 2 : undefined}
         className={isEditor ? "gantt-task-bar gantt-task-bar--interactive" : "gantt-task-bar"}
         style={isEditor ? { cursor: moveDrag.isDragging ? "grabbing" : "grab", touchAction: "none" } : undefined}
         onPointerDown={isEditor ? moveDrag.onPointerDown : undefined}

@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GanttChart } from "@/gantt/GanttChart";
 import { createStarterChart } from "@/gantt/starterChart";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("GanttChart", () => {
   it("renders task names, date headers, bars, and legend", () => {
@@ -12,7 +15,26 @@ describe("GanttChart", () => {
     expect(screen.getByRole("img", { name: "Execution Timeline Gantt chart" })).toBeVisible();
     expect(screen.getAllByTestId("task-bar").length).toBeGreaterThan(0);
     expect(screen.getByText("IRHX")).toBeVisible();
-    expect(screen.getByText("Tue")).toBeVisible();
+    expect(screen.getAllByText("Tue")[0]).toBeVisible();
+  });
+
+  it("labels every visible date column across multiple weeks", () => {
+    const { container } = render(
+      <GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />,
+    );
+
+    const weekdayLabels = Array.from(container.querySelectorAll(".gantt-date-weekday"));
+    expect(weekdayLabels).toHaveLength(8);
+    expect(weekdayLabels.every((label) => label.textContent?.trim())).toBe(true);
+    expect(screen.getAllByText("Tue")).toHaveLength(2);
+  });
+
+  it("labels today at its visible date column", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T12:00:00"));
+    render(<GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />);
+
+    expect(screen.getByText("Today")).toBeVisible();
   });
 
   it("omits editor-only handles in export mode", () => {
@@ -21,6 +43,14 @@ describe("GanttChart", () => {
     expect(screen.getAllByTestId("resize-handle")).toHaveLength(2);
     rerender(<GanttChart document={chart} mode="export" selectedTaskId={chart.tasks[0].id} />);
     expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
+  });
+
+  it("outlines the selected editor task bar", () => {
+    const chart = createStarterChart("2026-08-04");
+    render(<GanttChart document={chart} mode="editor" selectedTaskId={chart.tasks[0].id} />);
+
+    expect(screen.getAllByTestId("task-bar")[0]).toHaveAttribute("stroke", "#1d4ed8");
+    expect(screen.getAllByTestId("task-bar")[0]).toHaveAttribute("stroke-width", "2");
   });
 
   it("keeps export bars passive without editor hit targets or callbacks", () => {

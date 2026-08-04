@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Plus } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
@@ -36,6 +36,7 @@ export function App() {
   const [editingTask, setEditingTask] = useState<GanttTask | null>(null);
   const [exportPhase, setExportPhase] = useState<"idle" | "preparing" | "exported" | "error">("idle");
   const [exportError, setExportError] = useState("");
+  const [exportRequested, setExportRequested] = useState(false);
   const exportSvgRef = useRef<SVGSVGElement>(null);
   const exportInProgressRef = useRef(false);
   const autosave = useAutosave(document, autosaveEnabled);
@@ -122,7 +123,7 @@ export function App() {
     closeTaskEditor();
   };
 
-  const exportPng = async () => {
+  const exportPng = useCallback(async () => {
     if (exportInProgressRef.current) return;
     const exportSvg = exportSvgRef.current;
     if (!exportSvg) {
@@ -148,7 +149,19 @@ export function App() {
       setExportPhase("error");
     } finally {
       exportInProgressRef.current = false;
+      setExportRequested(false);
     }
+  }, [document.title]);
+
+  useEffect(() => {
+    if (exportRequested) void exportPng();
+  }, [exportPng, exportRequested]);
+
+  const requestExport = () => {
+    if (exportInProgressRef.current || exportRequested) return;
+    setExportError("");
+    setExportPhase("preparing");
+    setExportRequested(true);
   };
 
   if (startupPhase === "loading") {
@@ -197,7 +210,7 @@ export function App() {
             {exportPhase === "error" && (
               <>
                 <span title={exportError}>Could not export PNG</span>
-                <button type="button" onClick={() => void exportPng()}>Retry export</button>
+                <button type="button" onClick={requestExport}>Retry export</button>
               </>
             )}
           </div>
@@ -210,11 +223,11 @@ export function App() {
               onBlur={() => setDocument((currentDocument) => ({ ...currentDocument, title: currentDocument.title.trim() || "Untitled Gantt Chart" }))}
             />
           </label>
-          <button type="button" onClick={openNewTask}>
+          <button type="button" className="primary-action" onClick={openNewTask}>
             <Plus aria-hidden="true" />
             Add task
           </button>
-          <button type="button" disabled={exportPhase === "preparing"} onClick={() => void exportPng()}>
+          <button type="button" className="export-action" disabled={exportPhase === "preparing"} onClick={requestExport}>
             <Download aria-hidden="true" />
             Export PNG
           </button>
@@ -238,12 +251,14 @@ export function App() {
           />
         </div>
       </section>
-      <div
-        aria-hidden="true"
-        style={{ position: "fixed", left: "-100000px", top: 0, pointerEvents: "none" }}
-      >
-        <GanttChart ref={exportSvgRef} document={document} mode="export" selectedTaskId={null} />
-      </div>
+      {exportRequested && (
+        <div
+          aria-hidden="true"
+          className="export-staging"
+        >
+          <GanttChart ref={exportSvgRef} document={document} mode="export" selectedTaskId={null} />
+        </div>
+      )}
       {dialogMode && editingTask && (
         <TaskEditorDialog
           mode={dialogMode}

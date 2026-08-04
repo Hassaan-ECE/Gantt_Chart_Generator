@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,7 +16,11 @@ beforeEach(() => {
   vi.mocked(saveChart).mockReset().mockResolvedValue(undefined);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("App shell", () => {
   it("shows the product name and primary chart actions after startup", async () => {
@@ -52,5 +56,41 @@ describe("App shell", () => {
 
     expect(saveChart).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("button", { name: "Add task" })).toBeEnabled();
+  });
+
+  it("normalizes a blank chart title when editing finishes", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const title = await screen.findByRole("textbox", { name: "Chart title" });
+
+    await user.clear(title);
+    await user.type(title, "   ");
+    await user.tab();
+
+    expect(title).toHaveValue("Untitled Gantt Chart");
+  });
+
+  it("adds a task with the default values and a generated ID", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "generated-task-id") });
+    vi.mocked(loadChart).mockResolvedValue(createStarterChart("2026-08-04"));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Add task" }));
+    expect(screen.getByLabelText("Task name")).toHaveValue("New task");
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-08-04");
+    expect(screen.getByLabelText("End date")).toHaveValue("2026-08-06");
+    await user.click(screen.getByRole("button", { name: "Save task" }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    expect(saveChart).toHaveBeenLastCalledWith(expect.objectContaining({
+      tasks: expect.arrayContaining([expect.objectContaining({
+        id: "generated-task-id",
+        name: "New task",
+        category: "General",
+        color: "#2f55cf",
+      })]),
+    }));
   });
 });

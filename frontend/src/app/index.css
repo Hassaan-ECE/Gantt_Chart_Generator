@@ -1,7 +1,14 @@
 :root {
-  color: #172033;
+  color: #1f2937;
+  color-scheme: light;
   font-family: "DM Sans", Arial, sans-serif;
-  background: #ffffff;
+  background: #f1f5f9;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -13,43 +20,69 @@ body,
 
 body {
   margin: 0;
-  background: #ffffff;
+  background: #f1f5f9;
   overflow: hidden;
 }
 
-button {
+button,
+input {
   font: inherit;
 }
 
 .app-shell {
   display: flex;
+  height: 100%;
   min-height: 100%;
   flex-direction: column;
-  background: #ffffff;
+  background: #f1f5f9;
 }
 
 .toolbar {
+  position: sticky;
+  z-index: 10;
+  top: 0;
   display: flex;
-  height: 56px;
-  flex: 0 0 56px;
+  height: 64px;
+  flex: 0 0 64px;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 0 16px;
+  gap: 20px;
+  overflow-x: auto;
+  border-bottom: 1px solid #dbe3ee;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 7%);
+  padding: 0 20px;
+  backdrop-filter: blur(10px);
 }
 
 .toolbar h1 {
+  flex: 0 0 auto;
   margin: 0;
-  color: #2563eb;
-  font-size: 18px;
+  color: #1d4ed8;
+  font-size: 19px;
   font-weight: 700;
-  line-height: 1;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .toolbar-actions {
   display: flex;
+  min-width: max-content;
   align-items: center;
   gap: 8px;
+}
+
+.autosave-status,
+.export-status {
+  min-height: 18px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.autosave-status button,
+.export-status button {
+  margin-left: 4px;
 }
 
 .chart-title-control {
@@ -61,13 +94,15 @@ button {
 }
 
 .chart-title-control input {
-  width: 180px;
-  border: 1px solid #d1d5db;
-  border-radius: 5px;
-  color: #172033;
-  font: inherit;
+  width: 190px;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #1f2937;
   font-size: 13px;
-  padding: 4px 6px;
+  padding: 5px 9px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .settings-menu {
@@ -80,13 +115,13 @@ button {
   top: calc(100% + 6px);
   right: 0;
   display: grid;
-  min-width: 160px;
-  gap: 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  min-width: 184px;
+  gap: 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 8px 20px rgb(15 23 42 / 15%);
-  padding: 10px;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 16%);
+  padding: 12px;
 }
 
 .settings-popover label,
@@ -99,16 +134,25 @@ button {
 .settings-popover label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.settings-popover input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
 }
 
 .task-editor-dialog {
   width: min(420px, calc(100vw - 32px));
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  box-shadow: 0 16px 40px rgb(15 23 42 / 24%);
-  color: #172033;
-  padding: 20px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 22px 54px rgb(15 23 42 / 28%);
+  color: #1f2937;
+  padding: 22px;
 }
 
 .task-editor-dialog::backdrop {
@@ -117,7 +161,7 @@ button {
 
 .task-editor-dialog form {
   display: grid;
-  gap: 12px;
+  gap: 13px;
 }
 
 .task-editor-dialog h2,
@@ -127,9 +171,10 @@ button {
 
 .task-editor-dialog input {
   border: 1px solid #cbd5e1;
-  border-radius: 5px;
-  font: inherit;
-  padding: 6px 8px;
+  border-radius: 7px;
+  color: #1f2937;
+  padding: 7px 9px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .task-editor-dialog input[type="color"] {
@@ -147,11 +192,12 @@ button {
 .dialog-actions button,
 .delete-confirmation button {
   border: 1px solid #d1d5db;
-  border-radius: 5px;
+  border-radius: 7px;
   background: #ffffff;
-  color: #172033;
+  color: #1f2937;
   cursor: pointer;
-  padding: 6px 10px;
+  padding: 7px 11px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .dialog-actions button[type="submit"] {
@@ -166,6 +212,19 @@ button {
   color: #b91c1c;
 }
 
+.delete-confirmation {
+  align-items: center;
+  border-radius: 8px;
+  background: #fef2f2;
+  padding: 10px;
+}
+
+.delete-confirmation p {
+  width: 100%;
+  color: #991b1b;
+  font-weight: 600;
+}
+
 .form-error {
   color: #b91c1c;
   font-size: 13px;
@@ -176,19 +235,37 @@ button {
   min-height: 32px;
   align-items: center;
   gap: 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
   background: #ffffff;
-  color: #374151;
+  color: #334155;
   cursor: pointer;
   padding: 6px 10px;
   font-size: 13px;
   font-weight: 600;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
 }
 
 .toolbar-actions button:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+
+.toolbar-actions button.primary-action {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgb(37 99 235 / 18%);
+}
+
+.toolbar-actions button.primary-action:hover {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+}
+
+.toolbar-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
 }
 
 .toolbar-actions svg {
@@ -199,28 +276,35 @@ button {
 .chart-surface {
   min-height: 0;
   flex: 1;
-  background: #ffffff;
-  padding: 16px;
+  background: #f1f5f9;
+  padding: 18px;
 }
 
 .chart-viewport {
   width: 100%;
   height: 100%;
   overflow: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #f8fafc;
+  overscroll-behavior: contain;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 7%);
+  scrollbar-gutter: stable both-edges;
 }
 
 .gantt-chart {
   display: block;
+  max-width: none;
+  background: #ffffff;
   font-family: "DM Sans", Arial, sans-serif;
+  shape-rendering: geometricPrecision;
 }
 
 .gantt-chart-title {
-  fill: #172033;
-  font-size: 16px;
+  fill: #1d4ed8;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .gantt-chart-label,
@@ -238,8 +322,13 @@ button {
 .gantt-date-value,
 .gantt-task-name,
 .gantt-legend-label {
-  fill: #172033;
+  fill: #374151;
   font-size: 12px;
+}
+
+.gantt-date-value {
+  fill: #4b5563;
+  font-weight: 500;
 }
 
 .gantt-task-name {
@@ -247,16 +336,124 @@ button {
 }
 
 .gantt-grid-line {
-  stroke: #e5e7eb;
+  stroke: #e7ecf3;
   stroke-width: 1;
 }
 
 .gantt-today-marker {
-  stroke: #ef4444;
+  stroke: #f97316;
   stroke-width: 2;
+}
+
+.gantt-today-label {
+  fill: #ea580c;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.gantt-legend-label {
+  fill: #475569;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .gantt-task-bar--interactive,
 .gantt-resize-handle {
   touch-action: none;
+}
+
+.gantt-task-bar--interactive {
+  transition: filter 120ms ease;
+}
+
+.gantt-task-bar--interactive:hover {
+  filter: saturate(1.08) brightness(0.98);
+}
+
+.gantt-resize-handle {
+  stroke: #1d4ed8;
+  stroke-width: 1;
+}
+
+.chart-title-control input:focus-visible,
+.settings-popover input:focus-visible,
+.task-editor-dialog input:focus-visible,
+.toolbar-actions button:focus-visible,
+.dialog-actions button:focus-visible,
+.delete-confirmation button:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+.gantt-chart [role="button"]:focus-visible {
+  outline: none;
+}
+
+.gantt-chart [role="button"]:focus-visible .gantt-task-bar {
+  stroke: #1d4ed8;
+  stroke-width: 3;
+}
+
+.export-staging {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  pointer-events: none;
+}
+
+.recovery-panel {
+  width: min(520px, calc(100% - 32px));
+  margin: auto;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgb(15 23 42 / 10%);
+  padding: 28px;
+}
+
+.recovery-panel h1 {
+  margin-top: 0;
+  color: #1d4ed8;
+}
+
+.recovery-panel button {
+  min-height: 36px;
+  border: 1px solid #2563eb;
+  border-radius: 7px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 7px 12px;
+}
+
+@media (max-width: 1100px) {
+  .toolbar {
+    gap: 14px;
+    padding: 0 12px;
+  }
+
+  .toolbar-actions {
+    gap: 6px;
+  }
+
+  .chart-title-control input {
+    width: 165px;
+  }
+
+  .chart-surface {
+    padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
