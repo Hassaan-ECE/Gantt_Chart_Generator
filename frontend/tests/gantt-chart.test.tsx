@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GanttChart } from "@/gantt/GanttChart";
 import { createStarterChart } from "@/gantt/starterChart";
@@ -61,5 +61,15 @@ describe("GanttChart", () => {
     fireEvent.keyDown(taskControl, { key: " " });
     expect(selectedTaskIds).toEqual([chart.tasks[0].id]);
     expect(editedTaskIds).toEqual([chart.tasks[0].id]);
+  });
+
+  it("edits the first task when its bar is double-clicked", () => {
+    const chart = createStarterChart("2026-08-04");
+    const onEditTask = vi.fn();
+    render(<GanttChart document={chart} mode="editor" selectedTaskId={null} onEditTask={onEditTask} />);
+
+    fireEvent.doubleClick(screen.getAllByTestId("task-bar")[0]);
+
+    expect(onEditTask).toHaveBeenCalledWith(chart.tasks[0].id);
   });
 });

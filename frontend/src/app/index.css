@@ -52,6 +52,125 @@ button {
   gap: 8px;
 }
 
+.chart-title-control {
+  display: grid;
+  gap: 2px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chart-title-control input {
+  width: 180px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+}
+
+.settings-menu {
+  position: relative;
+}
+
+.settings-popover {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 160px;
+  gap: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 15%);
+  padding: 10px;
+}
+
+.settings-popover label,
+.task-editor-dialog label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.settings-popover label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-editor-dialog {
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 24%);
+  color: #172033;
+  padding: 20px;
+}
+
+.task-editor-dialog::backdrop {
+  background: rgb(15 23 42 / 35%);
+}
+
+.task-editor-dialog form {
+  display: grid;
+  gap: 12px;
+}
+
+.task-editor-dialog h2,
+.task-editor-dialog p {
+  margin: 0;
+}
+
+.task-editor-dialog input {
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.task-editor-dialog input[type="color"] {
+  min-height: 34px;
+  padding: 2px;
+}
+
+.dialog-actions,
+.delete-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dialog-actions button,
+.delete-confirmation button {
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #172033;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+
+.dialog-actions button[type="submit"] {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.dialog-actions .danger-button,
+.delete-confirmation .danger-button {
+  border-color: #dc2626;
+  color: #b91c1c;
+}
+
+.form-error {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
 .toolbar-actions button {
   display: inline-flex;
   min-height: 32px;

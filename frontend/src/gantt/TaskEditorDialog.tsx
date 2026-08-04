@@ -1,0 +1,108 @@
+import { useEffect, useState } from "react";
+
+import type { GanttTask } from "@/gantt/model";
+
+export interface TaskEditorDialogProps {
+  mode: "create" | "edit";
+  task: GanttTask;
+  onSave: (task: GanttTask) => void;
+  onCancel: () => void;
+  onDelete?: (taskId: string) => void;
+}
+
+type FieldErrors = Partial<Record<"name" | "startDate" | "endDate" | "category" | "color", string>>;
+
+function validateTask(task: GanttTask): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!task.name.trim()) errors.name = "Task name is required.";
+  if (!task.category.trim()) errors.category = "Category is required.";
+  if (!/^#[0-9a-f]{6}$/i.test(task.color)) errors.color = "Color must be a six-digit hex value.";
+  if (!task.startDate) errors.startDate = "Start date is required.";
+  if (!task.endDate) errors.endDate = "End date is required.";
+  if (task.startDate && task.endDate && task.endDate < task.startDate) {
+    errors.endDate = "End date cannot be before start date.";
+  }
+  return errors;
+}
+
+export function TaskEditorDialog({ mode, task, onSave, onCancel, onDelete }: TaskEditorDialogProps) {
+  const [draft, setDraft] = useState<GanttTask>(task);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    setDraft(task);
+    setErrors({});
+    setConfirmDelete(false);
+  }, [task]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
+
+  const updateField = <Field extends keyof GanttTask>(field: Field, value: GanttTask[Field]) => {
+    setDraft((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: undefined }));
+  };
+
+  const save = () => {
+    const nextTask = { ...draft, name: draft.name.trim(), category: draft.category.trim() };
+    const nextErrors = validateTask(nextTask);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+    onSave(nextTask);
+  };
+
+  return (
+    <dialog className="task-editor-dialog" open aria-labelledby="task-editor-title" onCancel={(event) => { event.preventDefault(); onCancel(); }}>
+      <form onSubmit={(event) => { event.preventDefault(); save(); }}>
+        <h2 id="task-editor-title">{mode === "create" ? "Add task" : "Edit task"}</h2>
+        <label>
+          Task name
+          <input aria-invalid={Boolean(errors.name)} value={draft.name} onChange={(event) => updateField("name", event.target.value)} />
+        </label>
+        {errors.name && <p className="form-error">{errors.name}</p>}
+        <label>
+          Start date
+          <input type="date" aria-invalid={Boolean(errors.startDate)} value={draft.startDate} onChange={(event) => updateField("startDate", event.target.value)} />
+        </label>
+        {errors.startDate && <p className="form-error">{errors.startDate}</p>}
+        <label>
+          End date
+          <input type="date" aria-invalid={Boolean(errors.endDate)} value={draft.endDate} onChange={(event) => updateField("endDate", event.target.value)} />
+        </label>
+        {errors.endDate && <p className="form-error">{errors.endDate}</p>}
+        <label>
+          Category
+          <input aria-invalid={Boolean(errors.category)} value={draft.category} onChange={(event) => updateField("category", event.target.value)} />
+        </label>
+        {errors.category && <p className="form-error">{errors.category}</p>}
+        <label>
+          Color
+          <input type="color" aria-invalid={Boolean(errors.color)} value={draft.color} onChange={(event) => updateField("color", event.target.value)} />
+        </label>
+        {errors.color && <p className="form-error">{errors.color}</p>}
+        <div className="dialog-actions">
+          <button type="submit">Save task</button>
+          <button type="button" onClick={onCancel}>Cancel</button>
+          {mode === "edit" && !confirmDelete && (
+            <button type="button" className="danger-button" onClick={() => setConfirmDelete(true)}>Delete task</button>
+          )}
+        </div>
+        {mode === "edit" && confirmDelete && (
+          <section className="delete-confirmation" aria-live="polite">
+            <p>Delete this task?</p>
+            <button type="button" className="danger-button" onClick={() => onDelete?.(task.id)}>Delete</button>
+            <button type="button" onClick={() => setConfirmDelete(false)}>Keep task</button>
+          </section>
+        )}
+      </form>
+    </dialog>
+  );
+}
