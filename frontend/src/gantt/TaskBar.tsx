@@ -1,3 +1,5 @@
+import type { KeyboardEvent } from "react";
+
 import type { TaskGeometry } from "@/gantt/layout";
 
 interface TaskBarProps {
@@ -10,19 +12,41 @@ interface TaskBarProps {
 
 export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: TaskBarProps) {
   const handleWidth = 10;
+  const isEditor = mode === "editor";
   const onClick = () => onSelectTask?.(geometry.id);
   const onDoubleClick = () => onEditTask?.(geometry.id);
+  const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onClick();
+    }
+    if (event.key === " " || event.key === "Spacebar") {
+      event.preventDefault();
+      onDoubleClick();
+    }
+  };
 
   return (
-    <g aria-label={`${geometry.task.name} task`} onClick={onClick} onDoubleClick={onDoubleClick}>
-      <rect
-        x={geometry.x - 8}
-        y={geometry.y - 6}
-        width={geometry.width + 16}
-        height={geometry.height + 12}
-        fill="transparent"
-        cursor={mode === "editor" ? "pointer" : undefined}
-      />
+    <g
+      data-testid="task-bar-group"
+      role={isEditor ? "button" : undefined}
+      aria-label={isEditor ? `${geometry.task.name} task` : undefined}
+      tabIndex={isEditor ? 0 : undefined}
+      onClick={isEditor ? onClick : undefined}
+      onDoubleClick={isEditor ? onDoubleClick : undefined}
+      onKeyDown={isEditor ? onKeyDown : undefined}
+    >
+      {isEditor && (
+        <rect
+          data-testid="task-hit-target"
+          x={geometry.x - 8}
+          y={geometry.y - 6}
+          width={geometry.width + 16}
+          height={geometry.height + 12}
+          fill="transparent"
+          cursor="pointer"
+        />
+      )}
       <rect
         data-testid="task-bar"
         x={geometry.x}
@@ -32,7 +56,7 @@ export function TaskBar({ geometry, mode, selected, onSelectTask, onEditTask }: 
         rx={6}
         fill={geometry.task.color}
       />
-      {mode === "editor" && selected && (
+      {isEditor && selected && (
         <>
           <rect
             data-testid="resize-handle"
