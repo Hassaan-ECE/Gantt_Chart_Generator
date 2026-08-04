@@ -1,0 +1,84 @@
+:root {
+  color: #172033;
+  font-family: "DM Sans", Arial, sans-serif;
+  background: #ffffff;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  background: #ffffff;
+}
+
+.toolbar {
+  display: flex;
+  height: 56px;
+  flex: 0 0 56px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 16px;
+}
+
+.toolbar h1 {
+  margin: 0;
+  color: #2563eb;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-actions button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.toolbar-actions button:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.toolbar-actions svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chart-surface {
+  min-height: 0;
+  flex: 1;
+  background: #ffffff;
+}

@@ -1,2 +1,9 @@
 .worktrees/
 .superpowers/sdd/
+node_modules/
+frontend/dist/
+frontend/node_modules/
+backend/target/
+backend/gen/
+*.tsbuildinfo
+.DS_Store
