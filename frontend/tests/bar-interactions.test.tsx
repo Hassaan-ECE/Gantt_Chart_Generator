@@ -33,6 +33,49 @@ function installPointerCaptureSpies(element: Element) {
 }
 
 describe("bar pointer interactions", () => {
+  it("maps screen coordinates through the SVG transform at adaptive day widths", () => {
+    const onPreviewTask = vi.fn();
+    const onCommitTask = vi.fn();
+    const chart = createStarterChart("2026-08-04");
+    render(
+      <GanttChart
+        document={chart}
+        mode="editor"
+        selectedTaskId={chart.tasks[0].id}
+        viewport={{ width: 800, height: 420 }}
+        onPreviewTask={onPreviewTask}
+        onCommitTask={onCommitTask}
+      />,
+    );
+    const svg = screen.getByRole("img") as unknown as SVGSVGElement;
+    Object.defineProperty(svg, "getScreenCTM", {
+      configurable: true,
+      value: () => ({ inverse: () => ({}) }),
+    });
+    Object.defineProperty(svg, "createSVGPoint", {
+      configurable: true,
+      value: () => {
+        const point = {
+          x: 0,
+          y: 0,
+          matrixTransform: () => ({ x: point.x * 2, y: point.y * 2 }),
+        };
+        return point;
+      },
+    });
+    const bar = screen.getAllByTestId("task-bar")[0];
+    installPointerCaptureSpies(bar);
+
+    fireEvent.pointerDown(bar, { pointerId: 10, clientX: 100, clientY: 20 });
+    fireEvent.pointerMove(bar, { pointerId: 10, clientX: 125, clientY: 20 });
+    fireEvent.pointerUp(bar, { pointerId: 10, clientX: 125, clientY: 20 });
+
+    expect(onCommitTask).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: "2026-08-05",
+      endDate: "2026-08-06",
+    }));
+  });
+
   it("previews during movement and commits once on pointer release", () => {
     const onPreviewTask = vi.fn();
     const onCommitTask = vi.fn();

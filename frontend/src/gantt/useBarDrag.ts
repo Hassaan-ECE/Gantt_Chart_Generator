@@ -24,6 +24,28 @@ interface ActiveDrag {
 
 type SvgPointerEvent = PointerEvent<SVGRectElement>;
 
+export function clientPointToSvgX(svg: SVGSVGElement, clientX: number, clientY: number): number {
+  const screenMatrix = svg.getScreenCTM?.();
+  if (screenMatrix && typeof svg.createSVGPoint === "function") {
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    return point.matrixTransform(screenMatrix.inverse()).x;
+  }
+
+  const bounds = svg.getBoundingClientRect();
+  if (bounds.width <= 0) return clientX;
+  const viewBox = svg.getAttribute("viewBox")?.split(/\s+/).map(Number);
+  const viewBoxX = viewBox?.[0] ?? 0;
+  const viewBoxWidth = (viewBox?.[2] ?? Number(svg.getAttribute("width"))) || bounds.width;
+  return viewBoxX + ((clientX - bounds.left) / bounds.width) * viewBoxWidth;
+}
+
+function pointerChartX(event: SvgPointerEvent): number {
+  const svg = event.currentTarget.ownerSVGElement;
+  return svg ? clientPointToSvgX(svg, event.clientX, event.clientY) : event.clientX;
+}
+
 function releasePointerCapture(element: SVGRectElement, pointerId: number) {
   (element as SVGRectElement & { releasePointerCapture?: (pointerId: number) => void })
     .releasePointerCapture?.(pointerId);
@@ -50,7 +72,7 @@ export function useBarDrag({ task, kind, dayWidth, settings, onPreviewTask, onCo
     event.currentTarget.setPointerCapture(event.pointerId);
     activeDrag.current = {
       pointerId: event.pointerId,
-      originX: event.clientX,
+      originX: pointerChartX(event),
       originalTask: task,
       lastSteps: 0,
       lastPreview: null,
@@ -62,7 +84,7 @@ export function useBarDrag({ task, kind, dayWidth, settings, onPreviewTask, onCo
     const drag = activeDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    const steps = Math.round((event.clientX - drag.originX) / dayWidth);
+    const steps = Math.round((pointerChartX(event) - drag.originX) / dayWidth);
     if (steps === drag.lastSteps) return;
 
     const preview = transformTask(drag.originalTask, steps);

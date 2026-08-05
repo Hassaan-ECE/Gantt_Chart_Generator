@@ -1,6 +1,5 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 
-import { DAY_WIDTH } from "@/gantt/layout";
 import type { TaskGeometry } from "@/gantt/layout";
 import type { ChartSettings, GanttTask } from "@/gantt/model";
 import { useBarDrag } from "@/gantt/useBarDrag";
@@ -10,14 +9,16 @@ interface TaskBarProps {
   mode: "editor" | "export";
   selected: boolean;
   settings: ChartSettings;
+  dayWidth: number;
+  handleWidth: number;
+  hitSlop: number;
   onSelectTask?: (taskId: string) => void;
   onEditTask?: (taskId: string) => void;
   onPreviewTask?: (task: GanttTask | null) => void;
   onCommitTask?: (task: GanttTask) => void;
 }
 
-export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEditTask, onPreviewTask, onCommitTask }: TaskBarProps) {
-  const handleWidth = 10;
+export function TaskBar({ geometry, mode, selected, settings, dayWidth, handleWidth, hitSlop, onSelectTask, onEditTask, onPreviewTask, onCommitTask }: TaskBarProps) {
   const isEditor = mode === "editor";
   const onClick = () => onSelectTask?.(geometry.id);
   const onDoubleClick = () => onEditTask?.(geometry.id);
@@ -34,7 +35,7 @@ export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEd
   const moveDrag = useBarDrag({
     task: geometry.task,
     kind: "move",
-    dayWidth: DAY_WIDTH,
+    dayWidth,
     settings,
     onPreviewTask,
     onCommitTask,
@@ -42,7 +43,7 @@ export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEd
   const startResizeDrag = useBarDrag({
     task: geometry.task,
     kind: "resize-start",
-    dayWidth: DAY_WIDTH,
+    dayWidth,
     settings,
     onPreviewTask,
     onCommitTask,
@@ -50,7 +51,7 @@ export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEd
   const endResizeDrag = useBarDrag({
     task: geometry.task,
     kind: "resize-end",
-    dayWidth: DAY_WIDTH,
+    dayWidth,
     settings,
     onPreviewTask,
     onCommitTask,
@@ -62,6 +63,7 @@ export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEd
       data-testid="task-bar-group"
       role={isEditor ? "button" : undefined}
       aria-label={isEditor ? `${geometry.task.name} task` : undefined}
+      aria-pressed={isEditor ? selected : undefined}
       tabIndex={isEditor ? 0 : undefined}
       onClick={isEditor ? onClick : undefined}
       onDoubleClick={isEditor ? onDoubleClick : undefined}
@@ -70,10 +72,10 @@ export function TaskBar({ geometry, mode, selected, settings, onSelectTask, onEd
       {isEditor && (
         <rect
           data-testid="task-hit-target"
-          x={geometry.x - 8}
-          y={geometry.y - 6}
-          width={geometry.width + 16}
-          height={geometry.height + 12}
+          x={geometry.x - hitSlop}
+          y={geometry.y - hitSlop}
+          width={geometry.width + hitSlop * 2}
+          height={geometry.height + hitSlop * 2}
           fill="transparent"
           cursor="pointer"
         />

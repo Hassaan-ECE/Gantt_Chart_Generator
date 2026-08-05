@@ -10,6 +10,27 @@ afterEach(() => {
 });
 
 describe("GanttChart", () => {
+  it("fits the requested viewport and keeps an unlabeled current-day marker in front", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T12:00:00"));
+    render(
+      <GanttChart
+        document={createStarterChart("2026-08-04")}
+        mode="editor"
+        selectedTaskId={null}
+        viewport={{ width: 800, height: 420 }}
+      />,
+    );
+
+    const svg = screen.getByRole("img");
+    expect(svg).toHaveAttribute("width", "800");
+    expect(svg).toHaveAttribute("height", "420");
+    expect(svg.querySelector(".gantt-today-label")).toBeNull();
+    const marker = svg.querySelector(".gantt-today");
+    expect(marker).not.toBeNull();
+    expect(marker).toBe(svg.lastElementChild);
+  });
+
   it("renders task names, date headers, bars, and legend", () => {
     render(<GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />);
     expect(screen.getByRole("img", { name: "Execution Timeline Gantt chart" })).toBeVisible();
@@ -29,12 +50,15 @@ describe("GanttChart", () => {
     expect(screen.getAllByText("Tue")).toHaveLength(2);
   });
 
-  it("labels today at its visible date column", () => {
+  it("marks today at its visible date column without redundant text", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-04T12:00:00"));
-    render(<GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />);
+    const { container } = render(
+      <GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />,
+    );
 
-    expect(screen.getByText("Today")).toBeVisible();
+    expect(container.querySelector(".gantt-today")).not.toBeNull();
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
   });
 
   it("omits editor-only handles in export mode", () => {
@@ -51,6 +75,7 @@ describe("GanttChart", () => {
 
     expect(screen.getAllByTestId("task-bar")[0]).toHaveAttribute("stroke", "#1d4ed8");
     expect(screen.getAllByTestId("task-bar")[0]).toHaveAttribute("stroke-width", "2");
+    expect(screen.getAllByRole("button", { name: /task$/ })[0]).toHaveAttribute("aria-pressed", "true");
   });
 
   it("keeps export bars passive without editor hit targets or callbacks", () => {
