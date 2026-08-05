@@ -1,10 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { ColorSuggestionField } from "@/gantt/ColorSuggestionField";
 import { isValidIsoDate, type GanttTask } from "@/gantt/model";
 
 export interface TaskEditorDialogProps {
   mode: "create" | "edit";
   task: GanttTask;
+  categoryOptions?: string[];
+  colorOptions?: string[];
   onSave: (task: GanttTask) => void;
   onCancel: () => void;
   onDelete?: (taskId: string) => void;
@@ -25,9 +28,10 @@ function validateTask(task: GanttTask): FieldErrors {
   return errors;
 }
 
-export function TaskEditorDialog({ mode, task, onSave, onCancel, onDelete }: TaskEditorDialogProps) {
+export function TaskEditorDialog({ mode, task, categoryOptions = [], colorOptions = [], onSave, onCancel, onDelete }: TaskEditorDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const categoryListId = useId();
   const [draft, setDraft] = useState<GanttTask>(task);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -94,13 +98,16 @@ export function TaskEditorDialog({ mode, task, onSave, onCancel, onDelete }: Tas
         {errors.endDate && <p className="form-error">{errors.endDate}</p>}
         <label>
           Category
-          <input aria-invalid={Boolean(errors.category)} value={draft.category} onChange={(event) => updateField("category", event.target.value)} />
+          <input list={categoryListId} aria-invalid={Boolean(errors.category)} value={draft.category} onChange={(event) => updateField("category", event.target.value)} />
         </label>
+        <datalist id={categoryListId}>
+          {Array.from(new Set(categoryOptions)).map((category) => <option key={category} value={category} />)}
+        </datalist>
         {errors.category && <p className="form-error">{errors.category}</p>}
-        <label>
-          Color
-          <input type="color" aria-invalid={Boolean(errors.color)} value={draft.color} onChange={(event) => updateField("color", event.target.value)} />
-        </label>
+        <div className="form-field">
+          <span>Color</span>
+          <ColorSuggestionField value={draft.color} options={colorOptions} onChange={(color) => updateField("color", color)} />
+        </div>
         {errors.color && <p className="form-error">{errors.color}</p>}
         <div className="dialog-actions">
           <button type="submit">Save task</button>

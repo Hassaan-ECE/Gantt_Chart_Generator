@@ -29,6 +29,56 @@ afterEach(() => {
 });
 
 describe("TaskEditorDialog", () => {
+  it("suggests existing categories while accepting a new category", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <TaskEditorDialog
+        mode="edit"
+        task={task}
+        categoryOptions={["PCS Testing", "Inventory"]}
+        colorOptions={["#8757ed", "#55c5ca"]}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const category = screen.getByRole("combobox", { name: "Category" });
+    expect(category).toHaveAttribute("list");
+    expect(document.querySelector("datalist option[value='Inventory']")).not.toBeNull();
+    await user.clear(category);
+    await user.type(category, "New discipline");
+    await user.click(screen.getByRole("button", { name: "Save task" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: "New discipline" }));
+  });
+
+  it("reuses used colors by pointer or keyboard and keeps custom color entry", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <TaskEditorDialog
+        mode="edit"
+        task={task}
+        categoryOptions={["PCS Testing", "Inventory"]}
+        colorOptions={["#8757ed", "#55c5ca"]}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose task color" }));
+    await user.click(screen.getByRole("option", { name: "Use color #55c5ca" }));
+    expect(screen.getByLabelText("Custom color")).toHaveValue("#55c5ca");
+
+    await user.click(screen.getByRole("button", { name: "Choose task color" }));
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(screen.getByLabelText("Custom color")).toHaveValue("#8757ed");
+
+    fireEvent.change(screen.getByLabelText("Custom color"), { target: { value: "#123456" } });
+    await user.click(screen.getByRole("button", { name: "Save task" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ color: "#123456" }));
+  });
+
   it("opens modally, focuses the task name, and closes when unmounted", () => {
     const { unmount } = render(<TaskEditorDialog mode="edit" task={task} onSave={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />);
 
