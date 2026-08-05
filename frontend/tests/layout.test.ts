@@ -22,6 +22,59 @@ const document: ChartDocument = {
 };
 
 describe("chart layout", () => {
+  it("fits every chart region into the requested viewport", () => {
+    const viewport = { width: 1048, height: 586 };
+    const layout = calculateChartLayout(document, "2026-08-04", viewport);
+
+    expect(layout.width).toBe(1048);
+    expect(layout.height).toBe(586);
+    expect(layout.metrics.dayWidth).toBeGreaterThan(0);
+    expect(layout.metrics.rowHeight).toBeGreaterThan(0);
+    expect(layout.metrics.barHeight).toBeLessThanOrEqual(layout.metrics.rowHeight);
+    expect(layout.metrics.taskFontSize).toBeGreaterThan(0);
+    expect(Math.max(...layout.tasks.map((task) => task.y + task.height))).toBeLessThanOrEqual(
+      layout.metrics.headerHeight + document.tasks.length * layout.metrics.rowHeight,
+    );
+  });
+
+  it("shrinks dense charts and their text instead of overflowing", () => {
+    const denseDocument: ChartDocument = {
+      ...document,
+      title: "Complete manufacturing and commissioning execution timeline for the entire program",
+      tasks: Array.from({ length: 30 }, (_, index) => ({
+        id: `task-${index}`,
+        name: `Long task label ${index} for the complete execution timeline`,
+        startDate: "2026-08-03",
+        endDate: "2026-09-30",
+        category: `Long discipline category ${index}`,
+        color: "#2f55cf",
+      })),
+    };
+
+    const layout = calculateChartLayout(denseDocument, "2026-08-04", { width: 720, height: 520 });
+
+    expect(layout.width).toBe(720);
+    expect(layout.height).toBe(520);
+    expect(layout.metrics.dayWidth).toBeGreaterThan(0);
+    expect(layout.metrics.rowHeight).toBeGreaterThan(0);
+    expect(layout.metrics.taskFontSize).toBeLessThan(14);
+    expect(layout.metrics.legendFontSize).toBeGreaterThan(0);
+    expect(layout.tasks.at(-1)!.y + layout.tasks.at(-1)!.height).toBeLessThanOrEqual(
+      layout.height - layout.metrics.legendHeight,
+    );
+    expect(layout.metrics.titleFontSize * denseDocument.title.length * 0.58).toBeLessThanOrEqual(
+      layout.metrics.labelWidth - layout.metrics.padding * 2 + 0.001,
+    );
+    expect(layout.metrics.taskFontSize * denseDocument.tasks[0].name.length * 0.58).toBeLessThanOrEqual(
+      layout.metrics.labelWidth - layout.metrics.padding * 2 + 0.001,
+    );
+    expect(
+      layout.metrics.legendFontSize * denseDocument.tasks[0].category.length * 0.58
+        + layout.metrics.legendSwatchSize
+        + layout.metrics.legendGap,
+    ).toBeLessThanOrEqual(layout.metrics.legendSlotWidth + 0.001);
+  });
+
   it("compresses a hidden weekend inside a continuous bar", () => {
     const layout = calculateChartLayout(document, "2026-08-04");
     expect(layout.tasks.find((task) => task.id === "weekday")?.width).toBe(DAY_WIDTH * 2);

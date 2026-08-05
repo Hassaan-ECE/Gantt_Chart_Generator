@@ -30,8 +30,103 @@ export interface ChartLayout {
   legend: LegendItem[];
   width: number;
   height: number;
+  metrics: ChartMetrics;
   headerHeight: number;
   rowHeight: number;
+}
+
+export interface ChartViewport {
+  width: number;
+  height: number;
+}
+
+export interface ChartMetrics {
+  labelWidth: number;
+  dayWidth: number;
+  headerHeight: number;
+  rowHeight: number;
+  barHeight: number;
+  legendHeight: number;
+  titleFontSize: number;
+  dateFontSize: number;
+  taskFontSize: number;
+  legendFontSize: number;
+  legendSwatchSize: number;
+  legendGap: number;
+  markerWidth: number;
+  handleWidth: number;
+  hitSlop: number;
+  padding: number;
+  legendSlotWidth: number;
+}
+
+function positive(value: number): number {
+  return Math.max(0.01, value);
+}
+
+function calculateMetrics(
+  document: ChartDocument,
+  visibleDateCount: number,
+  legendCount: number,
+  viewport: ChartViewport,
+): ChartMetrics {
+  const width = positive(viewport.width);
+  const height = positive(viewport.height);
+  const taskSlots = Math.max(1, document.tasks.length);
+  const naturalHeight = HEADER_HEIGHT + taskSlots * ROW_HEIGHT + (legendCount > 0 ? LEGEND_HEIGHT : 0);
+  const horizontalScale = Math.min(1, width / (LABEL_WIDTH + visibleDateCount * DAY_WIDTH));
+  const verticalScale = Math.min(1, height / naturalHeight);
+  const padding = positive(Math.min(20, width * 0.018));
+  const labelWidth = positive(Math.min(width * 0.5, LABEL_WIDTH * Math.max(horizontalScale, 0.3)));
+  const dayWidth = positive((width - labelWidth) / Math.max(1, visibleDateCount));
+  const headerHeight = positive(HEADER_HEIGHT * verticalScale);
+  const legendHeight = legendCount === 0 ? 0 : positive(LEGEND_HEIGHT * verticalScale);
+  const rowHeight = positive((height - headerHeight - legendHeight) / taskSlots);
+  const barHeight = positive(Math.min(BAR_HEIGHT, rowHeight * 0.64));
+  const longestTaskLength = Math.max(1, ...document.tasks.map((task) => task.name.length));
+  const longestCategoryLength = Math.max(1, ...document.tasks.map((task) => task.category.length));
+  const titleLength = Math.max(1, document.title.length);
+  const legendSlotWidth = positive((width - padding * 2) / Math.max(1, legendCount));
+  const legendSwatchSize = positive(Math.min(12, legendHeight * 0.28, legendSlotWidth * 0.16));
+  const legendGap = positive(Math.min(8, legendSlotWidth * 0.08));
+  const fittedFontSize = (maximum: number, available: number, characters: number) =>
+    positive(Math.min(maximum, positive(available) / (Math.max(1, characters) * 0.58)));
+
+  return {
+    labelWidth,
+    dayWidth,
+    headerHeight,
+    rowHeight,
+    barHeight,
+    legendHeight,
+    titleFontSize: fittedFontSize(
+      Math.min(18, headerHeight * 0.34, 18 * verticalScale),
+      labelWidth - padding * 2,
+      titleLength,
+    ),
+    dateFontSize: fittedFontSize(
+      Math.min(12, headerHeight * 0.25, 12 * verticalScale),
+      dayWidth,
+      6,
+    ),
+    taskFontSize: fittedFontSize(
+      Math.min(14, rowHeight * 0.42, 14 * verticalScale),
+      labelWidth - padding * 2,
+      longestTaskLength,
+    ),
+    legendFontSize: fittedFontSize(
+      Math.min(11, legendHeight * 0.28, 11 * verticalScale),
+      legendSlotWidth - legendSwatchSize - legendGap,
+      longestCategoryLength,
+    ),
+    legendSwatchSize,
+    legendGap,
+    markerWidth: positive(Math.min(MIN_MARKER_WIDTH, dayWidth * 0.2)),
+    handleWidth: positive(Math.min(10, dayWidth * 0.18, barHeight * 0.4)),
+    hitSlop: positive(Math.min(8, rowHeight * 0.18)),
+    padding,
+    legendSlotWidth,
+  };
 }
 
 function chartDateRange(document: ChartDocument, today: IsoDate): { start: IsoDate; end: IsoDate } {
@@ -51,15 +146,33 @@ function chartDateRange(document: ChartDocument, today: IsoDate): { start: IsoDa
   );
 }
 
-export function calculateChartLayout(document: ChartDocument, today: IsoDate): ChartLayout {
+export function calculateChartLayout(
+  document: ChartDocument,
+  today: IsoDate,
+  viewport?: ChartViewport,
+): ChartLayout {
   const range = chartDateRange(document, today);
   const start = addVisibleDays(range.start, -1, document.settings);
   const end = addVisibleDays(range.end, 1, document.settings);
   const visibleDates = visibleDatesBetween(start, end, document.settings);
 
+  const categories = new Set<string>();
+  const legend = document.tasks.flatMap((task) => {
+    if (categories.has(task.category)) return [];
+    categories.add(task.category);
+    return [{ category: task.category, color: task.color }];
+  });
+
+  const naturalViewport = {
+    width: LABEL_WIDTH + visibleDates.length * DAY_WIDTH,
+    height: HEADER_HEIGHT + Math.max(1, document.tasks.length) * ROW_HEIGHT + LEGEND_HEIGHT,
+  };
+  const target = viewport ?? naturalViewport;
+  const metrics = calculateMetrics(document, visibleDates.length, legend.length, target);
+
   const tasks = document.tasks.map((task, index): TaskGeometry => {
     const includedDates = visibleDatesBetween(task.startDate, task.endDate, document.settings);
-    const y = HEADER_HEIGHT + index * ROW_HEIGHT + (ROW_HEIGHT - BAR_HEIGHT) / 2;
+    const y = metrics.headerHeight + index * metrics.rowHeight + (metrics.rowHeight - metrics.barHeight) / 2;
 
     if (includedDates.length > 0) {
       const firstIndex = visibleDates.indexOf(includedDates[0]);
@@ -67,10 +180,10 @@ export function calculateChartLayout(document: ChartDocument, today: IsoDate): C
       return {
         id: task.id,
         task,
-        x: LABEL_WIDTH + firstIndex * DAY_WIDTH,
+        x: metrics.labelWidth + firstIndex * metrics.dayWidth,
         y,
-        width: (lastIndex - firstIndex + 1) * DAY_WIDTH,
-        height: BAR_HEIGHT,
+        width: (lastIndex - firstIndex + 1) * metrics.dayWidth,
+        height: metrics.barHeight,
         isMarker: false,
       };
     }
@@ -80,28 +193,22 @@ export function calculateChartLayout(document: ChartDocument, today: IsoDate): C
     return {
       id: task.id,
       task,
-      x: LABEL_WIDTH + seamIndex * DAY_WIDTH - MIN_MARKER_WIDTH / 2,
+      x: metrics.labelWidth + seamIndex * metrics.dayWidth - metrics.markerWidth / 2,
       y,
-      width: MIN_MARKER_WIDTH,
-      height: BAR_HEIGHT,
+      width: metrics.markerWidth,
+      height: metrics.barHeight,
       isMarker: true,
     };
-  });
-
-  const categories = new Set<string>();
-  const legend = document.tasks.flatMap((task) => {
-    if (categories.has(task.category)) return [];
-    categories.add(task.category);
-    return [{ category: task.category, color: task.color }];
   });
 
   return {
     visibleDates,
     tasks,
     legend,
-    width: LABEL_WIDTH + visibleDates.length * DAY_WIDTH,
-    height: HEADER_HEIGHT + document.tasks.length * ROW_HEIGHT + LEGEND_HEIGHT,
-    headerHeight: HEADER_HEIGHT,
-    rowHeight: ROW_HEIGHT,
+    width: target.width,
+    height: target.height,
+    metrics,
+    headerHeight: metrics.headerHeight,
+    rowHeight: metrics.rowHeight,
   };
 }
