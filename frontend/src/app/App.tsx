@@ -76,16 +76,17 @@ export function App() {
 
   useEffect(() => {
     let midnightTimer: ReturnType<typeof setTimeout>;
-    const scheduleNextLocalMidnight = () => {
+    const reconcileTodayAndScheduleNextMidnight = () => {
       const now = new Date();
+      setToday(currentLocalIsoDate(now));
       const nextMidnight = new Date(now);
       nextMidnight.setHours(24, 0, 0, 0);
-      midnightTimer = globalThis.setTimeout(() => {
-        setToday(currentLocalIsoDate());
-        scheduleNextLocalMidnight();
-      }, Math.max(1, nextMidnight.getTime() - now.getTime()));
+      midnightTimer = globalThis.setTimeout(
+        reconcileTodayAndScheduleNextMidnight,
+        Math.max(1, nextMidnight.getTime() - now.getTime()),
+      );
     };
-    scheduleNextLocalMidnight();
+    reconcileTodayAndScheduleNextMidnight();
     return () => globalThis.clearTimeout(midnightTimer);
   }, []);
 

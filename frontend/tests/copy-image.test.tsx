@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app/App";
 import { svgToPngArtifact, type PngArtifact } from "@/gantt/exportPng";
-import { createStarterChart } from "@/gantt/starterChart";
+import * as starterChart from "@/gantt/starterChart";
 import { copyPngToClipboard } from "@/integrations/tauri/clipboardBridge";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
 import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridge";
@@ -37,6 +37,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 function expectTodayAlignedWith(svg: SVGSVGElement, dateLabel: string) {
@@ -85,7 +86,7 @@ describe("Copy image action", () => {
   it("keeps the toolbar, editor, and copied SVG on the same local date across midnight", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date(2026, 7, 5, 23, 59, 59, 900));
-    const emptyChart = { ...createStarterChart("2026-08-05"), tasks: [] };
+    const emptyChart = { ...starterChart.createStarterChart("2026-08-05"), tasks: [] };
     vi.mocked(loadChart).mockResolvedValue(emptyChart);
     let stagedSvg: SVGSVGElement | null = null;
     vi.mocked(svgToPngArtifact).mockImplementation(async (svg) => {
@@ -101,6 +102,37 @@ describe("Copy image action", () => {
     expectTodayAlignedWith(editorSvg, "08/05");
 
     await act(async () => vi.advanceTimersByTimeAsync(100));
+    await user.click(screen.getByRole("button", { name: "Copy image" }));
+
+    expect(editorSvg.textContent).toContain("07/29");
+    expect(editorSvg.textContent).toContain("08/14");
+    expectTodayAlignedWith(editorSvg, "08/06");
+    expect(stagedSvg).not.toBeNull();
+    expect(stagedSvg!.textContent).toContain("07/29");
+    expect(stagedSvg!.textContent).toContain("08/14");
+    expectTodayAlignedWith(stagedSvg!, "08/06");
+    expect(rangeTrigger).toHaveTextContent("Jul 29, 2026 – Aug 14, 2026");
+  });
+
+  it("reconciles the local date when effect setup starts after midnight", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 7, 6, 0, 0, 0, 100));
+    const actualCurrentLocalIsoDate = starterChart.currentLocalIsoDate;
+    vi.spyOn(starterChart, "currentLocalIsoDate").mockImplementation((now) => (
+      now ? actualCurrentLocalIsoDate(now) : "2026-08-05"
+    ));
+    const emptyChart = { ...starterChart.createStarterChart("2026-08-05"), tasks: [] };
+    vi.mocked(loadChart).mockResolvedValue(emptyChart);
+    let stagedSvg: SVGSVGElement | null = null;
+    vi.mocked(svgToPngArtifact).mockImplementation(async (svg) => {
+      stagedSvg = svg.cloneNode(true) as SVGSVGElement;
+      return artifact;
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<App />);
+
+    const rangeTrigger = await screen.findByRole("button", { name: "Choose timeline range" });
+    const editorSvg = screen.getByRole("group", { name: "Execution Timeline Gantt chart" }) as unknown as SVGSVGElement;
     await user.click(screen.getByRole("button", { name: "Copy image" }));
 
     expect(editorSvg.textContent).toContain("07/29");
