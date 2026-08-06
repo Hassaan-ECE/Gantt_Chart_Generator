@@ -489,6 +489,206 @@ input {
   stroke-width: 3;
 }
 
+.timeline-range-picker {
+  position: relative;
+}
+
+.timeline-range-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.timeline-range-trigger svg {
+  width: 17px;
+  height: 17px;
+}
+
+.timeline-range-popover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 316px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgb(15 23 42 / 16%);
+  padding: 14px;
+}
+
+.timeline-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.timeline-range-fields label {
+  display: grid;
+  gap: 4px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.timeline-range-fields input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 7px 8px;
+}
+
+.timeline-range-endpoints,
+.timeline-range-actions,
+.timeline-range-month-controls {
+  display: flex;
+  align-items: center;
+}
+
+.timeline-range-endpoints {
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.timeline-range-endpoints button,
+.timeline-range-actions button,
+.timeline-range-month-controls button {
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+}
+
+.timeline-range-endpoints button {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.timeline-range-endpoints button[aria-pressed="true"] {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.timeline-range-month-controls {
+  justify-content: space-between;
+  margin: 12px 0 8px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.timeline-range-month-controls button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+}
+
+.timeline-range-month-controls svg {
+  width: 16px;
+  height: 16px;
+}
+
+.timeline-range-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  justify-content: space-between;
+  gap: 3px;
+}
+
+.timeline-range-weekday {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.timeline-range-day {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  padding: 0;
+}
+
+.timeline-range-day:hover {
+  background: #eff6ff;
+}
+
+.timeline-range-day--outside {
+  color: #a8b3c3;
+}
+
+.timeline-range-day--in-range {
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.timeline-range-day--start,
+.timeline-range-day--end,
+.timeline-range-day--endpoint,
+.timeline-range-day--start:hover,
+.timeline-range-day--end:hover,
+.timeline-range-day--endpoint:hover {
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.timeline-range-day--today::after {
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  left: 6px;
+  height: 2px;
+  border-radius: 999px;
+  background: #f97316;
+  content: "";
+}
+
+.timeline-range-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.timeline-range-actions button {
+  padding: 7px 11px;
+}
+
+.timeline-range-actions .timeline-range-apply {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.timeline-range-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.timeline-range-fields input:focus-visible,
+.timeline-range-popover button:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
 .export-staging {
   position: fixed;
   top: 0;
