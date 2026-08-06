@@ -1,9 +1,15 @@
 export const CHART_SCHEMA_VERSION = 1 as const;
 export type IsoDate = string;
 
+export interface TimelineRange {
+  startDate: IsoDate;
+  endDate: IsoDate;
+}
+
 export interface ChartSettings {
   showSaturday: boolean;
   showSunday: boolean;
+  timelineRange?: TimelineRange;
 }
 
 export interface GanttTask {
@@ -39,6 +45,21 @@ export function parseChartDocument(value: unknown): ChartDocument {
   if (!document.settings || typeof document.settings !== "object") throw new Error("settings are required");
   const settings = document.settings as Record<string, unknown>;
   if (typeof settings.showSaturday !== "boolean" || typeof settings.showSunday !== "boolean") throw new Error("weekend settings must be boolean");
+  let timelineRange: TimelineRange | undefined;
+  if (settings.timelineRange !== undefined) {
+    if (!settings.timelineRange || typeof settings.timelineRange !== "object") {
+      throw new Error("timeline range must be an object");
+    }
+    const range = settings.timelineRange as Record<string, unknown>;
+    if (typeof range.startDate !== "string" || typeof range.endDate !== "string"
+      || !isValidIsoDate(range.startDate) || !isValidIsoDate(range.endDate)) {
+      throw new Error("timeline range dates must use valid YYYY-MM-DD values");
+    }
+    if (range.endDate < range.startDate) {
+      throw new Error("timeline range endDate must not precede startDate");
+    }
+    timelineRange = { startDate: range.startDate, endDate: range.endDate };
+  }
   if (!Array.isArray(document.tasks)) throw new Error("tasks must be an array");
 
   const tasks = document.tasks.map((item, index): GanttTask => {
@@ -56,7 +77,11 @@ export function parseChartDocument(value: unknown): ChartDocument {
   return {
     schemaVersion: CHART_SCHEMA_VERSION,
     title: document.title.trim(),
-    settings: settings as unknown as ChartSettings,
+    settings: {
+      showSaturday: settings.showSaturday,
+      showSunday: settings.showSunday,
+      ...(timelineRange ? { timelineRange } : {}),
+    },
     tasks,
   };
 }

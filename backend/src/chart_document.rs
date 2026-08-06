@@ -2,9 +2,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct TimelineRange {
+    pub start_date: String,
+    pub end_date: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ChartSettings {
     pub show_saturday: bool,
     pub show_sunday: bool,
+    #[serde(default)]
+    pub timeline_range: Option<TimelineRange>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -29,6 +38,16 @@ pub struct ChartDocument {
 
 impl ChartDocument {
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(timeline_range) = &self.settings.timeline_range {
+            if !is_valid_date(&timeline_range.start_date)
+                || !is_valid_date(&timeline_range.end_date)
+            {
+                return Err("timeline range dates must use valid YYYY-MM-DD values".into());
+            }
+            if timeline_range.end_date < timeline_range.start_date {
+                return Err("timeline range endDate must not precede startDate".into());
+            }
+        }
         if self.schema_version != 1 {
             return Err("unsupported chart schema version".into());
         }

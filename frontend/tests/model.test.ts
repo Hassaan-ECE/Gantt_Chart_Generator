@@ -18,6 +18,35 @@ describe("chart document validation", () => {
     expect(value.tasks[0].endDate).toBe("2026-08-05");
   });
 
+  it("loads a valid optional timeline range", () => {
+    const parsed = parseChartDocument({
+      schemaVersion: 1,
+      title: "Roadmap",
+      settings: {
+        showSaturday: false,
+        showSunday: false,
+        timelineRange: { startDate: "2026-08-01", endDate: "2026-08-28" },
+      },
+      tasks: [],
+    });
+    expect(parsed.settings.timelineRange).toEqual({
+      startDate: "2026-08-01",
+      endDate: "2026-08-28",
+    });
+  });
+
+  it.each([
+    { startDate: "2026-02-30", endDate: "2026-03-02" },
+    { startDate: "2026-08-05", endDate: "2026-08-04" },
+  ])("rejects invalid timeline range %#", (timelineRange) => {
+    expect(() => parseChartDocument({
+      schemaVersion: 1,
+      title: "Roadmap",
+      settings: { showSaturday: false, showSunday: false, timelineRange },
+      tasks: [],
+    })).toThrow(/timeline range/i);
+  });
+
   it("rejects an end date before its start date", () => {
     expect(() => parseChartDocument({
       schemaVersion: 1,

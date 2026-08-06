@@ -1,6 +1,8 @@
 use std::fs;
 
-use gantt_chart_creator_lib::chart_document::{ChartDocument, ChartSettings, GanttTask};
+use gantt_chart_creator_lib::chart_document::{
+    ChartDocument, ChartSettings, GanttTask, TimelineRange,
+};
 use gantt_chart_creator_lib::storage::{load_chart_from, save_chart_to, save_chart_to_with_rename};
 
 fn sample() -> ChartDocument {
@@ -10,6 +12,7 @@ fn sample() -> ChartDocument {
         settings: ChartSettings {
             show_saturday: false,
             show_sunday: false,
+            timeline_range: None,
         },
         tasks: vec![GanttTask {
             id: "task-1".into(),
@@ -28,6 +31,46 @@ fn saves_and_loads_a_versioned_chart() {
     let path = root.path().join("chart.json");
     save_chart_to(&path, &sample()).unwrap();
     assert_eq!(load_chart_from(&path).unwrap().unwrap(), sample());
+}
+
+#[test]
+fn persists_an_optional_timeline_range() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let mut document = sample();
+    document.settings.timeline_range = Some(TimelineRange {
+        start_date: "2026-08-01".into(),
+        end_date: "2026-08-28".into(),
+    });
+
+    save_chart_to(&path, &document).unwrap();
+    assert_eq!(load_chart_from(&path).unwrap(), Some(document));
+}
+
+#[test]
+fn rejects_a_reversed_timeline_range() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("chart.json");
+    let mut document = sample();
+    document.settings.timeline_range = Some(TimelineRange {
+        start_date: "2026-08-05".into(),
+        end_date: "2026-08-04".into(),
+    });
+
+    assert!(save_chart_to(&path, &document).is_err());
+    assert!(!path.exists());
+}
+
+#[test]
+fn loads_legacy_settings_without_a_timeline_range() {
+    let legacy = serde_json::json!({
+        "schemaVersion": 1,
+        "title": "Legacy",
+        "settings": { "showSaturday": false, "showSunday": false },
+        "tasks": [],
+    });
+    let parsed: ChartDocument = serde_json::from_value(legacy).unwrap();
+    assert_eq!(parsed.settings.timeline_range, None);
 }
 
 #[test]
