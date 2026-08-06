@@ -23,6 +23,51 @@ afterEach(() => {
 });
 
 describe("App shell", () => {
+  it("moves title editing into the chart and clears selection from blank chart space", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const chartTitle = await screen.findByRole("textbox", { name: "Chart title" });
+    expect(chartTitle).toHaveClass("gantt-inline-title");
+    expect(chartTitle.closest(".toolbar")).toBeNull();
+
+    const task = screen.getByRole("button", { name: "Support PCS testing task" });
+    await user.click(task);
+    expect(task).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByTestId("chart-background"));
+    expect(task).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
+  });
+
+  it("clears selected resize handles with Escape", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const task = await screen.findByRole("button", { name: "Support PCS testing task" });
+    await user.click(task);
+    expect(screen.getAllByTestId("resize-handle")).toHaveLength(2);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
+  });
+
+  it("commits direct title edits and restores the focused value on Escape", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const title = await screen.findByRole("textbox", { name: "Chart title" }) as HTMLInputElement;
+
+    await user.click(title);
+    expect(title.selectionStart).toBe(0);
+    expect(title.selectionEnd).toBe("Execution Timeline".length);
+    await user.clear(title);
+    await user.type(title, "Weekly Review{Enter}");
+    expect(title).toHaveValue("Weekly Review");
+
+    await user.click(title);
+    await user.clear(title);
+    await user.type(title, "Discard this{Escape}");
+    expect(title).toHaveValue("Weekly Review");
+  });
+
   it("shows the product name and primary chart actions after startup", async () => {
     render(<App />);
 

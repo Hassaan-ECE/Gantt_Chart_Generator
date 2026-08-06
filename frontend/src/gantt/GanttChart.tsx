@@ -1,7 +1,8 @@
 import { forwardRef } from "react";
 
 import { currentLocalIsoDate } from "@/gantt/starterChart";
-import { calculateChartLayout, type ChartViewport } from "@/gantt/layout";
+import { InlineChartTitle } from "@/gantt/InlineChartTitle";
+import { calculateChartLayout, estimateTextWidth, type ChartViewport } from "@/gantt/layout";
 import type { ChartDocument, GanttTask, IsoDate } from "@/gantt/model";
 import { TaskBar } from "@/gantt/TaskBar";
 
@@ -15,6 +16,8 @@ export interface GanttChartProps {
   onEditTask?: (taskId: string) => void;
   onPreviewTask?: (task: GanttTask | null) => void;
   onCommitTask?: (task: GanttTask) => void;
+  onClearSelection?: () => void;
+  onTitleCommit?: (title: string) => void;
 }
 
 function formatWeekday(date: IsoDate): string {
@@ -33,6 +36,60 @@ function withPreview(document: ChartDocument, previewTask?: GanttTask): ChartDoc
   };
 }
 
+function balancedSplitIndex(text: string, targetWidth: number, maximumWidth: number, fontSize: number): number {
+  let characterSplit = 1;
+  while (
+    characterSplit < text.length
+    && estimateTextWidth(text.slice(0, characterSplit + 1), fontSize, 700) <= targetWidth
+  ) {
+    characterSplit += 1;
+  }
+  while (
+    characterSplit > 1
+    && estimateTextWidth(text.slice(0, characterSplit), fontSize, 700) > maximumWidth
+  ) {
+    characterSplit -= 1;
+  }
+
+  const whitespaceSplits = Array.from(text)
+    .flatMap((character, index) => character === " " && index > 0 ? [index] : [])
+    .filter((index) => estimateTextWidth(text.slice(0, index), fontSize, 700) <= maximumWidth);
+  const closestWhitespace = whitespaceSplits.reduce<number | null>((closest, index) => {
+    if (closest === null) return index;
+    const currentDelta = Math.abs(estimateTextWidth(text.slice(0, index), fontSize, 700) - targetWidth);
+    const closestDelta = Math.abs(estimateTextWidth(text.slice(0, closest), fontSize, 700) - targetWidth);
+    return currentDelta < closestDelta ? index : closest;
+  }, null);
+
+  if (closestWhitespace !== null) {
+    const whitespaceDelta = Math.abs(
+      estimateTextWidth(text.slice(0, closestWhitespace), fontSize, 700) - targetWidth,
+    );
+    if (whitespaceDelta <= fontSize * 4) return closestWhitespace;
+  }
+  return characterSplit;
+}
+
+function wrapTaskName(name: string, maximumWidth: number, fontSize: number, maximumLines: number): string[] {
+  const normalizedName = name.trim();
+  if (
+    maximumLines <= 1
+    || estimateTextWidth(normalizedName, fontSize, 700) <= maximumWidth
+  ) return [normalizedName];
+
+  const lines: string[] = [];
+  let remaining = normalizedName;
+  for (let lineIndex = 0; lineIndex < maximumLines - 1 && remaining; lineIndex += 1) {
+    const remainingLines = maximumLines - lineIndex;
+    const targetWidth = estimateTextWidth(remaining, fontSize, 700) / remainingLines;
+    const splitIndex = balancedSplitIndex(remaining, targetWidth, maximumWidth, fontSize);
+    lines.push(remaining.slice(0, splitIndex).trim());
+    remaining = remaining.slice(splitIndex).trim();
+  }
+  if (remaining) lines.push(remaining);
+  return lines;
+}
+
 export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function GanttChart(props, ref) {
   const document = withPreview(props.document, props.previewTask);
   const today = currentLocalIsoDate();
@@ -40,19 +97,43 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
   const { metrics } = layout;
   const gridBottom = metrics.headerHeight + document.tasks.length * metrics.rowHeight;
   const todayIndex = layout.visibleDates.indexOf(today);
+  const todayOffset = todayIndex >= 0
+    ? todayIndex + 0.5
+    : (() => {
+        const nextVisibleIndex = layout.visibleDates.findIndex((date) => date > today);
+        return nextVisibleIndex === -1 ? layout.visibleDates.length : nextVisibleIndex;
+      })();
 
   return (
     <svg
       ref={ref}
       className="gantt-chart"
-      role="img"
+      role={props.mode === "editor" ? "group" : "img"}
       aria-label={`${document.title} Gantt chart`}
+      data-testid="chart-background"
+      onClick={props.mode === "editor" ? props.onClearSelection : undefined}
       viewBox={`0 0 ${layout.width} ${layout.height}`}
       width={layout.width}
       height={layout.height}
     >
       <rect data-export-background="true" width={layout.width} height={layout.height} fill="#ffffff" />
-      <text className="gantt-chart-title" x={metrics.padding} y={metrics.headerHeight * 0.42} style={{ fontSize: metrics.titleFontSize }}>{document.title}</text>
+      {props.mode === "editor" && props.onTitleCommit ? (
+        <foreignObject
+          data-editor-only="true"
+          x={metrics.padding}
+          y={metrics.padding * 0.25}
+          width={Math.max(0.01, metrics.labelWidth - metrics.padding * 2)}
+          height={Math.max(0.01, metrics.headerHeight * 0.5)}
+        >
+          <InlineChartTitle
+            value={document.title}
+            onCommit={props.onTitleCommit}
+            style={{ fontSize: metrics.titleFontSize }}
+          />
+        </foreignObject>
+      ) : (
+        <text className="gantt-chart-title" x={metrics.padding} y={metrics.headerHeight * 0.42} style={{ fontSize: metrics.titleFontSize }}>{document.title}</text>
+      )}
       <text className="gantt-chart-label" x={metrics.padding} y={metrics.headerHeight * 0.8} style={{ fontSize: metrics.dateFontSize }}>Task</text>
       {layout.visibleDates.map((date, index) => {
         const x = metrics.labelWidth + index * metrics.dayWidth;
@@ -67,16 +148,37 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
       })}
       <line className="gantt-grid-line" x1={layout.width} y1={0} x2={layout.width} y2={gridBottom} />
       <line className="gantt-grid-line" x1={0} y1={metrics.headerHeight} x2={layout.width} y2={metrics.headerHeight} />
-      {layout.tasks.map((geometry, index) => (
-        <g key={geometry.id} data-testid="task-row">
-          <line
-            className="gantt-grid-line"
-            x1={0}
-            y1={metrics.headerHeight + (index + 1) * metrics.rowHeight}
-            x2={layout.width}
-            y2={metrics.headerHeight + (index + 1) * metrics.rowHeight}
-          />
-          <text className="gantt-task-name" x={metrics.padding} y={geometry.y + metrics.barHeight / 2} style={{ fontSize: metrics.taskFontSize }}>{geometry.task.name}</text>
+      {layout.tasks.map((geometry) => {
+        const taskNameWidth = Math.max(0.01, metrics.labelWidth - metrics.padding * 2);
+        const taskNameLines = wrapTaskName(
+          geometry.task.name,
+          taskNameWidth,
+          metrics.taskFontSize,
+          metrics.taskLabelLines,
+        );
+        const lineHeight = metrics.taskFontSize * 1.18;
+        const taskNameY = geometry.y + metrics.barHeight / 2 - ((taskNameLines.length - 1) * lineHeight) / 2;
+
+        return (
+          <g key={geometry.id} data-testid="task-row">
+          <text
+            className="gantt-task-name"
+            x={metrics.padding}
+            y={taskNameY}
+            style={{ fontSize: metrics.taskFontSize, fontWeight: 700 }}
+          >
+            {taskNameLines.map((line, lineIndex) => (
+              <tspan
+                key={`${geometry.id}-${lineIndex}`}
+                x={metrics.padding}
+                dy={lineIndex === 0 ? 0 : lineHeight}
+                textLength={Math.min(taskNameWidth, estimateTextWidth(line, metrics.taskFontSize, 700))}
+                lengthAdjust="spacingAndGlyphs"
+              >
+                {line}
+              </tspan>
+            ))}
+          </text>
           <TaskBar
             geometry={geometry}
             mode={props.mode}
@@ -90,8 +192,9 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
             onPreviewTask={props.onPreviewTask}
             onCommitTask={props.onCommitTask}
           />
-        </g>
-      ))}
+          </g>
+        );
+      })}
       <g className="gantt-legend" transform={`translate(${metrics.padding} ${gridBottom + metrics.legendHeight / 2})`}>
         {layout.legend.map((item, index) => {
           const x = index * metrics.legendSlotWidth;
@@ -103,17 +206,15 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
           );
         })}
       </g>
-      {todayIndex >= 0 && (
-        <g className="gantt-today" pointerEvents="none">
-          <line
-            className="gantt-today-marker"
-            x1={metrics.labelWidth + todayIndex * metrics.dayWidth + metrics.dayWidth / 2}
-            y1={metrics.headerHeight}
-            x2={metrics.labelWidth + todayIndex * metrics.dayWidth + metrics.dayWidth / 2}
-            y2={gridBottom}
-          />
-        </g>
-      )}
+      <g className="gantt-today" pointerEvents="none">
+        <line
+          className="gantt-today-marker"
+          x1={metrics.labelWidth + todayOffset * metrics.dayWidth}
+          y1={metrics.headerHeight}
+          x2={metrics.labelWidth + todayOffset * metrics.dayWidth}
+          y2={gridBottom}
+        />
+      </g>
     </svg>
   );
 });

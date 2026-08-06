@@ -30,7 +30,13 @@ export function SettingsMenu({ settings, onChange }: SettingsMenuProps) {
 
   return (
     <div className="settings-menu" ref={rootRef}>
-      <button type="button" aria-label="Chart settings" aria-expanded={isOpen} onClick={() => setIsOpen((open) => !open)}>
+      <button
+        type="button"
+        aria-label="Chart settings"
+        title="Chart settings"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+      >
         <Settings aria-hidden="true" />
       </button>
       {isOpen && (

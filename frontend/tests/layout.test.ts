@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateChartLayout,
   DAY_WIDTH,
+  estimateTextWidth,
   HEADER_HEIGHT,
   LABEL_WIDTH,
   LEGEND_HEIGHT,
@@ -62,14 +63,14 @@ describe("chart layout", () => {
     expect(layout.tasks.at(-1)!.y + layout.tasks.at(-1)!.height).toBeLessThanOrEqual(
       layout.height - layout.metrics.legendHeight,
     );
-    expect(layout.metrics.titleFontSize * denseDocument.title.length * 0.58).toBeLessThanOrEqual(
+    expect(estimateTextWidth(denseDocument.title, layout.metrics.titleFontSize, 700)).toBeLessThanOrEqual(
       layout.metrics.labelWidth - layout.metrics.padding * 2 + 0.001,
     );
-    expect(layout.metrics.taskFontSize * denseDocument.tasks[0].name.length * 0.58).toBeLessThanOrEqual(
+    expect(estimateTextWidth(denseDocument.tasks[0].name, layout.metrics.taskFontSize, 700)).toBeLessThanOrEqual(
       layout.metrics.labelWidth - layout.metrics.padding * 2 + 0.001,
     );
     expect(
-      layout.metrics.legendFontSize * denseDocument.tasks[0].category.length * 0.58
+      estimateTextWidth(denseDocument.tasks[0].category, layout.metrics.legendFontSize, 600)
         + layout.metrics.legendSwatchSize
         + layout.metrics.legendGap,
     ).toBeLessThanOrEqual(layout.metrics.legendSlotWidth + 0.001);
@@ -83,8 +84,9 @@ describe("chart layout", () => {
   it("keeps a weekend-only task visible as a marker", () => {
     const layout = calculateChartLayout(document, "2026-08-04");
     const marker = layout.tasks.find((task) => task.id === "weekend");
+    const nextVisibleIndex = layout.visibleDates.findIndex((date) => date > document.tasks[1].endDate);
     expect(marker?.width).toBe(MIN_MARKER_WIDTH);
-    expect(marker?.x).toBe(LABEL_WIDTH + DAY_WIDTH * 2 - MIN_MARKER_WIDTH / 2);
+    expect(marker?.x).toBe(LABEL_WIDTH + DAY_WIDTH * nextVisibleIndex - MIN_MARKER_WIDTH / 2);
   });
 
   it("grows vertically for every task and the legend", () => {
@@ -94,7 +96,15 @@ describe("chart layout", () => {
 
   it("pads the visible range and derives chart dimensions from it", () => {
     const layout = calculateChartLayout(document, "2026-08-04");
-    expect(layout.visibleDates).toEqual(["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11"]);
+    expect(layout.visibleDates).toEqual([
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+      "2026-08-06",
+      "2026-08-07",
+      "2026-08-10",
+      "2026-08-11",
+    ]);
     expect(layout.width).toBe(LABEL_WIDTH + layout.visibleDates.length * DAY_WIDTH);
     expect(layout.height).toBe(HEADER_HEIGHT + document.tasks.length * ROW_HEIGHT + LEGEND_HEIGHT);
   });
@@ -106,6 +116,22 @@ describe("chart layout", () => {
       "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04",
       "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11", "2026-08-12",
     ]);
+  });
+
+  it("keeps today inside the fitted range when every task is in the future", () => {
+    const futureDocument: ChartDocument = {
+      ...document,
+      tasks: document.tasks.map((task, index) => ({
+        ...task,
+        startDate: `2026-10-${String(index + 5).padStart(2, "0")}`,
+        endDate: `2026-10-${String(index + 6).padStart(2, "0")}`,
+      })),
+    };
+
+    const layout = calculateChartLayout(futureDocument, "2026-08-04", { width: 720, height: 520 });
+
+    expect(layout.visibleDates).toContain("2026-08-04");
+    expect(layout.width).toBe(720);
   });
 
   it("honors Saturday and Sunday visibility independently", () => {

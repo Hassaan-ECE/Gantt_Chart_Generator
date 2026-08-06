@@ -10,6 +10,22 @@ afterEach(() => {
 });
 
 describe("GanttChart", () => {
+  it("uses interactive editor semantics instead of hiding controls inside an image role", () => {
+    render(
+      <GanttChart
+        document={createStarterChart("2026-08-04")}
+        mode="editor"
+        selectedTaskId={null}
+        onTitleCommit={vi.fn()}
+      />,
+    );
+
+    const chart = screen.getByRole("group", { name: "Execution Timeline Gantt chart" });
+    expect(chart.querySelector('[aria-label="Chart title"]')).toBeInTheDocument();
+    expect(chart.querySelector('[role="button"]')).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Execution Timeline Gantt chart" })).not.toBeInTheDocument();
+  });
+
   it("fits the requested viewport and keeps an unlabeled current-day marker in front", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-04T12:00:00"));
@@ -22,7 +38,7 @@ describe("GanttChart", () => {
       />,
     );
 
-    const svg = screen.getByRole("img");
+    const svg = screen.getByRole("group", { name: "Execution Timeline Gantt chart" });
     expect(svg).toHaveAttribute("width", "800");
     expect(svg).toHaveAttribute("height", "420");
     expect(svg.querySelector(".gantt-today-label")).toBeNull();
@@ -33,10 +49,52 @@ describe("GanttChart", () => {
 
   it("renders task names, date headers, bars, and legend", () => {
     render(<GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />);
-    expect(screen.getByRole("img", { name: "Execution Timeline Gantt chart" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Execution Timeline Gantt chart" })).toBeVisible();
     expect(screen.getAllByTestId("task-bar").length).toBeGreaterThan(0);
     expect(screen.getByText("IRHX")).toBeVisible();
     expect(screen.getAllByText("Tue")[0]).toBeVisible();
+  });
+
+  it("keeps task names prominent by wrapping them before shrinking the type", () => {
+    const { container } = render(
+      <GanttChart
+        document={createStarterChart("2026-08-04")}
+        mode="editor"
+        selectedTaskId={null}
+        viewport={{ width: 709, height: 672 }}
+      />,
+    );
+
+    const firstTaskName = container.querySelector(".gantt-task-name");
+    expect(firstTaskName?.querySelectorAll("tspan")).toHaveLength(2);
+    expect(firstTaskName).toHaveStyle({ fontSize: "14px", fontWeight: "700" });
+  });
+
+  it("fits wide unbroken task labels without dropping any characters", () => {
+    const chart = createStarterChart("2026-08-04");
+    const longName = "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW";
+    chart.tasks[0] = { ...chart.tasks[0], name: longName };
+    const { container } = render(
+      <GanttChart
+        document={chart}
+        mode="editor"
+        selectedTaskId={null}
+        viewport={{ width: 709, height: 672 }}
+      />,
+    );
+
+    const firstTaskName = container.querySelector(".gantt-task-name")!;
+    const lines = Array.from(firstTaskName.querySelectorAll("tspan"));
+    expect(lines).toHaveLength(2);
+    expect(lines.map((line) => line.textContent).join("")).toBe(longName);
+    expect(lines.every((line) => line.getAttribute("lengthAdjust") === "spacingAndGlyphs")).toBe(true);
+    expect(lines.every((line) => Number(line.getAttribute("textLength")) <= 709 * 0.5)).toBe(true);
+  });
+
+  it("groups task rows without drawing container-like horizontal dividers", () => {
+    render(<GanttChart document={createStarterChart("2026-08-04")} mode="editor" selectedTaskId={null} />);
+
+    expect(screen.getAllByTestId("task-row").every((row) => !row.querySelector(".gantt-grid-line"))).toBe(true);
   });
 
   it("labels every visible date column across multiple weeks", () => {
@@ -59,6 +117,25 @@ describe("GanttChart", () => {
 
     expect(container.querySelector(".gantt-today")).not.toBeNull();
     expect(screen.queryByText("Today")).not.toBeInTheDocument();
+  });
+
+  it("shows the current-day seam even when today is a hidden weekend far from every task", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00"));
+    const chart = createStarterChart("2026-10-05");
+    const { container } = render(
+      <GanttChart
+        document={chart}
+        mode="editor"
+        selectedTaskId={null}
+        viewport={{ width: 800, height: 420 }}
+      />,
+    );
+
+    const marker = container.querySelector(".gantt-today-marker");
+    expect(marker).not.toBeNull();
+    expect(Number(marker?.getAttribute("x1"))).toBe(Number(marker?.getAttribute("x2")));
+    expect(container.querySelector(".gantt-today")).toBe(container.querySelector(".gantt-chart")?.lastElementChild);
   });
 
   it("omits editor-only handles in export mode", () => {

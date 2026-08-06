@@ -50,6 +50,7 @@ export interface ChartMetrics {
   titleFontSize: number;
   dateFontSize: number;
   taskFontSize: number;
+  taskLabelLines: number;
   legendFontSize: number;
   legendSwatchSize: number;
   legendGap: number;
@@ -62,6 +63,22 @@ export interface ChartMetrics {
 
 function positive(value: number): number {
   return Math.max(0.01, value);
+}
+
+function glyphWidthFactor(character: string): number {
+  if (/\s/.test(character)) return 0.34;
+  if (/[ilI1|.,':;!]/.test(character)) return 0.32;
+  if (/[MW@#%&]/.test(character)) return 0.92;
+  if (/[A-Z]/.test(character)) return 0.68;
+  if (/[0-9]/.test(character)) return 0.56;
+  return 0.56;
+}
+
+export function estimateTextWidth(text: string, fontSize: number, fontWeight = 400): number {
+  const weightFactor = fontWeight >= 600 ? 1.04 : 1;
+  return Array.from(text).reduce((width, character) => width + glyphWidthFactor(character), 0)
+    * fontSize
+    * weightFactor;
 }
 
 function calculateMetrics(
@@ -83,14 +100,28 @@ function calculateMetrics(
   const legendHeight = legendCount === 0 ? 0 : positive(LEGEND_HEIGHT * verticalScale);
   const rowHeight = positive((height - headerHeight - legendHeight) / taskSlots);
   const barHeight = positive(Math.min(BAR_HEIGHT, rowHeight * 0.64));
-  const longestTaskLength = Math.max(1, ...document.tasks.map((task) => task.name.length));
-  const longestCategoryLength = Math.max(1, ...document.tasks.map((task) => task.category.length));
-  const titleLength = Math.max(1, document.title.length);
+  const taskLabelLines = rowHeight >= 36 ? 2 : 1;
   const legendSlotWidth = positive((width - padding * 2) / Math.max(1, legendCount));
   const legendSwatchSize = positive(Math.min(12, legendHeight * 0.28, legendSlotWidth * 0.16));
   const legendGap = positive(Math.min(8, legendSlotWidth * 0.08));
-  const fittedFontSize = (maximum: number, available: number, characters: number) =>
-    positive(Math.min(maximum, positive(available) / (Math.max(1, characters) * 0.58)));
+  const fittedFontSize = (
+    maximum: number,
+    available: number,
+    text: string,
+    fontWeight = 400,
+    lineCount = 1,
+  ) => positive(Math.min(
+    maximum,
+    (positive(available) * lineCount) / Math.max(0.01, estimateTextWidth(text, 1, fontWeight)),
+  ));
+  const widestTaskName = document.tasks.reduce(
+    (widest, task) => estimateTextWidth(task.name, 1, 700) > estimateTextWidth(widest, 1, 700) ? task.name : widest,
+    "",
+  );
+  const widestCategory = document.tasks.reduce(
+    (widest, task) => estimateTextWidth(task.category, 1, 600) > estimateTextWidth(widest, 1, 600) ? task.category : widest,
+    "",
+  );
 
   return {
     labelWidth,
@@ -102,22 +133,28 @@ function calculateMetrics(
     titleFontSize: fittedFontSize(
       Math.min(18, headerHeight * 0.34, 18 * verticalScale),
       labelWidth - padding * 2,
-      titleLength,
+      document.title,
+      700,
     ),
     dateFontSize: fittedFontSize(
       Math.min(12, headerHeight * 0.25, 12 * verticalScale),
       dayWidth,
-      6,
+      "Sep 30",
+      500,
     ),
     taskFontSize: fittedFontSize(
       Math.min(14, rowHeight * 0.42, 14 * verticalScale),
       labelWidth - padding * 2,
-      longestTaskLength,
+      widestTaskName,
+      700,
+      taskLabelLines,
     ),
+    taskLabelLines,
     legendFontSize: fittedFontSize(
       Math.min(11, legendHeight * 0.28, 11 * verticalScale),
       legendSlotWidth - legendSwatchSize - legendGap,
-      longestCategoryLength,
+      widestCategory,
+      600,
     ),
     legendSwatchSize,
     legendGap,
@@ -142,7 +179,7 @@ function chartDateRange(document: ChartDocument, today: IsoDate): { start: IsoDa
       start: task.startDate < range.start ? task.startDate : range.start,
       end: task.endDate > range.end ? task.endDate : range.end,
     }),
-    { start: document.tasks[0].startDate, end: document.tasks[0].endDate },
+    { start: today, end: today },
   );
 }
 

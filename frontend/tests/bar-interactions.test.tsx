@@ -47,7 +47,7 @@ describe("bar pointer interactions", () => {
         onCommitTask={onCommitTask}
       />,
     );
-    const svg = screen.getByRole("img") as unknown as SVGSVGElement;
+    const svg = screen.getByRole("group") as unknown as SVGSVGElement;
     Object.defineProperty(svg, "getScreenCTM", {
       configurable: true,
       value: () => ({ inverse: () => ({}) }),

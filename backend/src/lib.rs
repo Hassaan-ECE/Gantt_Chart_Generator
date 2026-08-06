@@ -41,6 +41,7 @@ fn write_png(path: String, bytes: Vec<u8>) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![load_chart, save_chart, write_png])
         .run(tauri::generate_context!())

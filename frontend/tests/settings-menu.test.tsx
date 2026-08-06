@@ -7,6 +7,12 @@ import { SettingsMenu } from "@/gantt/SettingsMenu";
 afterEach(cleanup);
 
 describe("SettingsMenu", () => {
+  it("explains the icon-only trigger with a native tooltip", () => {
+    render(<SettingsMenu settings={{ showSaturday: false, showSunday: false }} onChange={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Chart settings" })).toHaveAttribute("title", "Chart settings");
+  });
+
   it("changes Saturday and Sunday independently", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

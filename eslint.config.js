@@ -6,7 +6,15 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["backend/target", "frontend/dist", "node_modules"],
+    ignores: [
+      ".worktrees/**",
+      "backend/gen/**",
+      "backend/target/**",
+      "coverage/**",
+      "frontend/dist/**",
+      "frontend/node_modules/**",
+      "node_modules/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

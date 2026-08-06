@@ -20,8 +20,14 @@ interface TaskBarProps {
 
 export function TaskBar({ geometry, mode, selected, settings, dayWidth, handleWidth, hitSlop, onSelectTask, onEditTask, onPreviewTask, onCommitTask }: TaskBarProps) {
   const isEditor = mode === "editor";
-  const onClick = () => onSelectTask?.(geometry.id);
-  const onDoubleClick = () => onEditTask?.(geometry.id);
+  const onClick = (event?: MouseEvent<SVGGElement>) => {
+    event?.stopPropagation();
+    onSelectTask?.(geometry.id);
+  };
+  const onDoubleClick = (event?: MouseEvent<SVGGElement>) => {
+    event?.stopPropagation();
+    onEditTask?.(geometry.id);
+  };
   const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -67,6 +73,7 @@ export function TaskBar({ geometry, mode, selected, settings, dayWidth, handleWi
       tabIndex={isEditor ? 0 : undefined}
       onClick={isEditor ? onClick : undefined}
       onDoubleClick={isEditor ? onDoubleClick : undefined}
+      onPointerDown={isEditor ? (event) => event.stopPropagation() : undefined}
       onKeyDown={isEditor ? onKeyDown : undefined}
     >
       {isEditor && (

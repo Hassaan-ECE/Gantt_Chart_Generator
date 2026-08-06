@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app/App";
-import { svgToPngBytes } from "@/gantt/exportPng";
+import { svgToPngArtifact, type PngArtifact } from "@/gantt/exportPng";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
 import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridge";
 
@@ -18,8 +18,13 @@ vi.mock("@/integrations/tauri/chartBridge", () => ({
 }));
 vi.mock("@/gantt/exportPng", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/gantt/exportPng")>();
-  return { ...actual, svgToPngBytes: vi.fn() };
+  return { ...actual, svgToPngArtifact: vi.fn() };
 });
+
+const artifact: PngArtifact = {
+  blob: new Blob([], { type: "image/png" }),
+  bytes: new Uint8Array([137, 80, 78, 71]),
+};
 
 describe("PNG export bridge", () => {
   beforeEach(() => {
@@ -27,7 +32,7 @@ describe("PNG export bridge", () => {
     vi.mocked(save).mockReset().mockResolvedValue(null);
     vi.mocked(loadChart).mockReset().mockResolvedValue(null);
     vi.mocked(saveChart).mockReset().mockResolvedValue(undefined);
-    vi.mocked(svgToPngBytes).mockReset().mockResolvedValue(new Uint8Array([137, 80, 78, 71]));
+    vi.mocked(svgToPngArtifact).mockReset().mockResolvedValue(artifact);
   });
 
   afterEach(cleanup);
@@ -62,14 +67,18 @@ describe("PNG export bridge", () => {
 
     const title = await screen.findByRole("textbox", { name: "Chart title" });
     const titleBeforeExport = title.getAttribute("value");
-    await user.click(screen.getByRole("button", { name: "Export PNG" }));
+    const exportButton = screen.getByRole("button", { name: "Export PNG" });
+    expect(exportButton).toHaveTextContent("");
+    await user.click(exportButton);
 
-    expect(svgToPngBytes).toHaveBeenCalledTimes(1);
-    const exportSvg = vi.mocked(svgToPngBytes).mock.calls[0][0];
+    expect(svgToPngArtifact).toHaveBeenCalledTimes(1);
+    const exportSvg = vi.mocked(svgToPngArtifact).mock.calls[0][0];
     expect(exportSvg).toBeInstanceOf(SVGSVGElement);
     expect(exportSvg.closest("[aria-hidden='true']")).not.toBeNull();
     expect(exportSvg.querySelector("[data-testid='task-hit-target']")).toBeNull();
-    expect(svgToPngBytes).toHaveBeenCalledWith(exportSvg, 2);
+    expect(exportSvg).toHaveAttribute("width", "1792");
+    expect(exportSvg).toHaveAttribute("height", "952");
+    expect(svgToPngArtifact).toHaveBeenCalledWith(exportSvg, 2);
     expect(await screen.findByText("PNG exported")).toBeVisible();
     expect(title).toHaveValue(titleBeforeExport);
     expect(invoke).toHaveBeenCalledWith("write_png", {
@@ -79,8 +88,8 @@ describe("PNG export bridge", () => {
   });
 
   it("ignores duplicate export clicks while rasterization is in progress", async () => {
-    let finishRasterization: ((bytes: Uint8Array) => void) | undefined;
-    vi.mocked(svgToPngBytes).mockImplementation(() => new Promise((resolve) => {
+    let finishRasterization: ((result: PngArtifact) => void) | undefined;
+    vi.mocked(svgToPngArtifact).mockImplementation(() => new Promise((resolve) => {
       finishRasterization = resolve;
     }));
     render(createElement(App));
@@ -91,8 +100,8 @@ describe("PNG export bridge", () => {
       fireEvent.click(exportButton);
     });
 
-    expect(svgToPngBytes).toHaveBeenCalledTimes(1);
-    finishRasterization?.(new Uint8Array([137, 80, 78, 71]));
+    expect(svgToPngArtifact).toHaveBeenCalledTimes(1);
+    finishRasterization?.(artifact);
     await waitFor(() => expect(exportButton).toBeEnabled());
   });
 
@@ -103,7 +112,7 @@ describe("PNG export bridge", () => {
     const exportButton = await screen.findByRole("button", { name: "Export PNG" });
     await user.click(exportButton);
 
-    expect(svgToPngBytes).toHaveBeenCalledTimes(1);
+    expect(svgToPngArtifact).toHaveBeenCalledTimes(1);
     expect(save).toHaveBeenCalledTimes(1);
     expect(invoke).not.toHaveBeenCalled();
     expect(screen.queryByText("Preparing PNG…")).not.toBeInTheDocument();
@@ -115,14 +124,14 @@ describe("PNG export bridge", () => {
   it("offers a visible retry that exports the latest chart after rasterization fails", async () => {
     const user = userEvent.setup();
     const exportedTitles: string[] = [];
-    vi.mocked(svgToPngBytes)
+    vi.mocked(svgToPngArtifact)
       .mockImplementationOnce(async (svg) => {
         exportedTitles.push(svg.querySelector(".gantt-chart-title")?.textContent ?? "");
         throw new Error("canvas failed");
       })
       .mockImplementationOnce(async (svg) => {
         exportedTitles.push(svg.querySelector(".gantt-chart-title")?.textContent ?? "");
-        return new Uint8Array([137, 80, 78, 71]);
+        return artifact;
       });
     vi.mocked(save).mockResolvedValue("C:\\Exports\\latest.png");
     render(createElement(App));

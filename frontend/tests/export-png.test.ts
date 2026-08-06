@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { prepareExportSvg, sanitizeExportFilename, svgToPngBytes } from "@/gantt/exportPng";
+import {
+  POWERPOINT_SLIDE_HEIGHT,
+  POWERPOINT_SLIDE_MARGIN,
+  POWERPOINT_SLIDE_WIDTH,
+  calculatePowerPointPlacement,
+  prepareExportSvg,
+  sanitizeExportFilename,
+  svgToPngBytes,
+} from "@/gantt/exportPng";
 
 describe("PNG export preparation", () => {
   afterEach(() => {
@@ -115,7 +123,18 @@ describe("PNG export preparation", () => {
     await expect(svgToPngBytes(document.querySelector("svg")!)).rejects.toThrow("Invalid SVG dimensions");
   });
 
-  it("rasterizes at 2x and returns the encoded PNG bytes", async () => {
+  it("shrinks a long timeline to fit inside the PowerPoint slide margins", () => {
+    const placement = calculatePowerPointPlacement(3584, 384);
+
+    expect(placement).toEqual({
+      x: POWERPOINT_SLIDE_MARGIN,
+      y: 444,
+      width: 1792,
+      height: 192,
+    });
+  });
+
+  it("rasterizes onto a 2x 16:9 PowerPoint slide and returns the encoded PNG bytes", async () => {
     const environment = installRasterEnvironment();
     document.body.innerHTML = `<svg width="800" height="400"><text>Task</text></svg>`;
 
@@ -124,12 +143,38 @@ describe("PNG export preparation", () => {
     );
 
     const canvas = environment.toBlob.mock.instances[0] as HTMLCanvasElement;
-    expect(canvas.width).toBe(1600);
-    expect(canvas.height).toBe(800);
+    expect(canvas.width).toBe(POWERPOINT_SLIDE_WIDTH * 2);
+    expect(canvas.height).toBe(POWERPOINT_SLIDE_HEIGHT * 2);
     expect(environment.context.scale).toHaveBeenCalledWith(2, 2);
-    expect(environment.context.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 800, 400);
+    expect(environment.context.fillRect).toHaveBeenCalledWith(
+      0,
+      0,
+      POWERPOINT_SLIDE_WIDTH,
+      POWERPOINT_SLIDE_HEIGHT,
+    );
+    const [, x, y, width, height] = environment.context.drawImage.mock.calls[0];
+    expect(x).toBeCloseTo(64);
+    expect(y).toBeCloseTo(92);
+    expect(width).toBeCloseTo(1792);
+    expect(height).toBeCloseTo(896);
     expect(environment.toBlob).toHaveBeenCalledWith(expect.any(Function), "image/png");
     expect(environment.revokeObjectUrl).toHaveBeenCalledExactlyOnceWith("blob:gantt-export");
+  });
+
+  it("returns one reusable PNG blob and byte array from one encoding", async () => {
+    const environment = installRasterEnvironment();
+    document.body.innerHTML = `<svg width="800" height="400"><text>Task</text></svg>`;
+    const module = await import("@/gantt/exportPng");
+
+    expect(module).toHaveProperty("svgToPngArtifact");
+    const rasterize = (module as typeof module & {
+      svgToPngArtifact: (source: SVGSVGElement) => Promise<{ blob: Blob; bytes: Uint8Array }>;
+    }).svgToPngArtifact;
+    const artifact = await rasterize(document.querySelector("svg")!);
+
+    expect(artifact.bytes).toEqual(new Uint8Array([137, 80, 78, 71]));
+    expect(artifact.blob).toBe(environment.encodedBlob);
+    expect(environment.toBlob).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an image load failure and revokes the object URL", async () => {
@@ -186,6 +231,7 @@ function installRasterEnvironment(options: RasterEnvironmentOptions = {}) {
 
   const context = {
     scale: vi.fn(),
+    fillRect: vi.fn(),
     drawImage: vi.fn(),
   };
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
@@ -202,6 +248,7 @@ function installRasterEnvironment(options: RasterEnvironmentOptions = {}) {
   return {
     context,
     createObjectUrl,
+    encodedBlob,
     revokeObjectUrl,
     toBlob,
   };

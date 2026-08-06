@@ -1,17 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Download, Plus } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
 import { GanttChart } from "@/gantt/GanttChart";
+import { useElementSize } from "@/gantt/useElementSize";
 import { addCalendarDays } from "@/gantt/dateMath";
-import { svgToPngBytes } from "@/gantt/exportPng";
+import {
+  POWERPOINT_SLIDE_HEIGHT,
+  POWERPOINT_SLIDE_MARGIN,
+  POWERPOINT_SLIDE_WIDTH,
+  svgToPngArtifact,
+} from "@/gantt/exportPng";
 import type { GanttTask } from "@/gantt/model";
 import { SettingsMenu } from "@/gantt/SettingsMenu";
 import { createStarterChart } from "@/gantt/starterChart";
 import { TaskEditorDialog } from "@/gantt/TaskEditorDialog";
 import { useAutosave } from "@/gantt/useAutosave";
+import { copyPngToClipboard } from "@/integrations/tauri/clipboardBridge";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
 import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridge";
+
+type ImageAction = "copy" | "export";
+type ImageActionPhase = "idle" | "preparing" | "copied" | "exported" | "error";
+
+const POWERPOINT_CHART_VIEWPORT = {
+  width: POWERPOINT_SLIDE_WIDTH - POWERPOINT_SLIDE_MARGIN * 2,
+  height: POWERPOINT_SLIDE_HEIGHT - POWERPOINT_SLIDE_MARGIN * 2,
+} as const;
 
 function createNewTask(startDate: string): GanttTask {
   return {
@@ -34,12 +49,23 @@ export function App() {
   const [previewTask, setPreviewTask] = useState<GanttTask | null>(null);
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [editingTask, setEditingTask] = useState<GanttTask | null>(null);
-  const [exportPhase, setExportPhase] = useState<"idle" | "preparing" | "exported" | "error">("idle");
-  const [exportError, setExportError] = useState("");
-  const [exportRequested, setExportRequested] = useState(false);
+  const [imagePhase, setImagePhase] = useState<ImageActionPhase>("idle");
+  const [imageError, setImageError] = useState("");
+  const [imageRequest, setImageRequest] = useState<ImageAction | null>(null);
   const exportSvgRef = useRef<SVGSVGElement>(null);
-  const exportInProgressRef = useRef(false);
+  const imageInProgressRef = useRef(false);
+  const imageRequestQueuedRef = useRef(false);
+  const lastImageActionRef = useRef<ImageAction>("copy");
+  const { ref: chartViewportRef, size: chartViewport } = useElementSize<HTMLDivElement>();
   const autosave = useAutosave(document, autosaveEnabled);
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(document.tasks.map((task) => task.category))),
+    [document.tasks],
+  );
+  const colorOptions = useMemo(
+    () => Array.from(new Set(document.tasks.map((task) => task.color.toLowerCase()))),
+    [document.tasks],
+  );
 
   useEffect(() => {
     let active = true;
@@ -62,6 +88,15 @@ export function App() {
   useEffect(() => {
     if (startupPhase === "ready") setAutosaveEnabled(true);
   }, [startupPhase]);
+
+  useEffect(() => {
+    if (dialogMode) return;
+    const clearSelection = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedTaskId(null);
+    };
+    globalThis.document.addEventListener("keydown", clearSelection);
+    return () => globalThis.document.removeEventListener("keydown", clearSelection);
+  }, [dialogMode]);
 
   const resetToStarterChart = async () => {
     const starterDocument = createStarterChart();
@@ -123,45 +158,55 @@ export function App() {
     closeTaskEditor();
   };
 
-  const exportPng = useCallback(async () => {
-    if (exportInProgressRef.current) return;
+  const runImageAction = useCallback(async (action: ImageAction) => {
+    if (imageInProgressRef.current) return;
     const exportSvg = exportSvgRef.current;
     if (!exportSvg) {
-      setExportError("The export chart is not ready.");
-      setExportPhase("error");
+      setImageError("The export chart is not ready.");
+      setImagePhase("error");
+      setImageRequest(null);
+      imageRequestQueuedRef.current = false;
       return;
     }
 
-    exportInProgressRef.current = true;
-    setExportError("");
-    setExportPhase("preparing");
+    imageInProgressRef.current = true;
+    setImageError("");
+    setImagePhase("preparing");
     try {
-      const bytes = await svgToPngBytes(exportSvg, 2);
-      const path = await choosePngDestination(document.title);
-      if (!path) {
-        setExportPhase("idle");
-        return;
+      const artifact = await svgToPngArtifact(exportSvg, 2);
+      if (action === "copy") {
+        await copyPngToClipboard(artifact);
+        setImagePhase("copied");
+      } else {
+        const path = await choosePngDestination(document.title);
+        if (!path) {
+          setImagePhase("idle");
+          return;
+        }
+        await writePng(path, artifact.bytes);
+        setImagePhase("exported");
       }
-      await writePng(path, bytes);
-      setExportPhase("exported");
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : String(error));
-      setExportPhase("error");
+      setImageError(error instanceof Error ? error.message : String(error));
+      setImagePhase("error");
     } finally {
-      exportInProgressRef.current = false;
-      setExportRequested(false);
+      imageInProgressRef.current = false;
+      imageRequestQueuedRef.current = false;
+      setImageRequest(null);
     }
   }, [document.title]);
 
   useEffect(() => {
-    if (exportRequested) void exportPng();
-  }, [exportPng, exportRequested]);
+    if (imageRequest) void runImageAction(imageRequest);
+  }, [imageRequest, runImageAction]);
 
-  const requestExport = () => {
-    if (exportInProgressRef.current || exportRequested) return;
-    setExportError("");
-    setExportPhase("preparing");
-    setExportRequested(true);
+  const requestImageAction = (action: ImageAction) => {
+    if (imageInProgressRef.current || imageRequestQueuedRef.current) return;
+    imageRequestQueuedRef.current = true;
+    lastImageActionRef.current = action;
+    setImageError("");
+    setImagePhase("preparing");
+    setImageRequest(action);
   };
 
   if (startupPhase === "loading") {
@@ -204,33 +249,50 @@ export function App() {
               </>
             )}
           </div>
-          <div className="export-status" aria-live="polite">
-            {exportPhase === "preparing" && "Preparing PNG…"}
-            {exportPhase === "exported" && "PNG exported"}
-            {exportPhase === "error" && (
+          <div className="image-action-status" aria-live="polite">
+            {imagePhase === "preparing" && (imageRequest === "copy" ? "Copying…" : "Preparing PNG…")}
+            {imagePhase === "copied" && "Copied"}
+            {imagePhase === "exported" && "PNG exported"}
+            {imagePhase === "error" && (
               <>
-                <span title={exportError}>Could not export PNG</span>
-                <button type="button" onClick={requestExport}>Retry export</button>
+                <span title={imageError}>
+                  {lastImageActionRef.current === "copy" ? "Could not copy image" : "Could not export PNG"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => requestImageAction(lastImageActionRef.current)}
+                >
+                  {lastImageActionRef.current === "copy" ? "Retry copy" : "Retry export"}
+                </button>
               </>
             )}
           </div>
-          <label className="chart-title-control">
-            <span>Chart title</span>
-            <input
-              aria-label="Chart title"
-              value={document.title}
-              onChange={(event) => setDocument((currentDocument) => ({ ...currentDocument, title: event.target.value }))}
-              onBlur={() => setDocument((currentDocument) => ({ ...currentDocument, title: currentDocument.title.trim() || "Untitled Gantt Chart" }))}
-            />
-          </label>
           <button type="button" className="primary-action" onClick={openNewTask}>
             <Plus aria-hidden="true" />
             Add task
           </button>
-          <button type="button" className="export-action" disabled={exportPhase === "preparing"} onClick={requestExport}>
-            <Download aria-hidden="true" />
-            Export PNG
-          </button>
+          <div className="toolbar-icon-group" role="group" aria-label="Chart image actions">
+            <button
+              type="button"
+              className="icon-action"
+              aria-label="Copy image"
+              title="Copy image for PowerPoint"
+              disabled={imagePhase === "preparing"}
+              onClick={() => requestImageAction("copy")}
+            >
+              <Copy aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-action"
+              aria-label="Export PNG"
+              title="Export PowerPoint-ready PNG"
+              disabled={imagePhase === "preparing"}
+              onClick={() => requestImageAction("export")}
+            >
+              <Download aria-hidden="true" />
+            </button>
+          </div>
           <SettingsMenu
             settings={document.settings}
             onChange={(settings) => setDocument((currentDocument) => ({ ...currentDocument, settings }))}
@@ -238,31 +300,44 @@ export function App() {
         </div>
       </header>
       <section className="chart-surface" aria-label="Gantt chart workspace">
-        <div className="chart-viewport">
-          <GanttChart
-            document={document}
-            mode="editor"
-            selectedTaskId={selectedTaskId}
-            previewTask={previewTask ?? undefined}
-            onSelectTask={setSelectedTaskId}
-            onEditTask={openTaskEditor}
-            onPreviewTask={setPreviewTask}
-            onCommitTask={commitTask}
-          />
+        <div ref={chartViewportRef} className="chart-viewport">
+          {chartViewport.width > 0 && chartViewport.height > 0 && (
+            <GanttChart
+              document={document}
+              mode="editor"
+              selectedTaskId={selectedTaskId}
+              previewTask={previewTask ?? undefined}
+              viewport={chartViewport}
+              onSelectTask={setSelectedTaskId}
+              onEditTask={openTaskEditor}
+              onPreviewTask={setPreviewTask}
+              onCommitTask={commitTask}
+              onClearSelection={() => setSelectedTaskId(null)}
+              onTitleCommit={(title) => setDocument((currentDocument) => ({ ...currentDocument, title }))}
+            />
+          )}
         </div>
       </section>
-      {exportRequested && (
+      {imageRequest && (
         <div
           aria-hidden="true"
           className="export-staging"
         >
-          <GanttChart ref={exportSvgRef} document={document} mode="export" selectedTaskId={null} />
+          <GanttChart
+            ref={exportSvgRef}
+            document={document}
+            mode="export"
+            selectedTaskId={null}
+            viewport={POWERPOINT_CHART_VIEWPORT}
+          />
         </div>
       )}
       {dialogMode && editingTask && (
         <TaskEditorDialog
           mode={dialogMode}
           task={editingTask}
+          categoryOptions={categoryOptions}
+          colorOptions={colorOptions}
           onSave={saveTask}
           onCancel={closeTaskEditor}
           onDelete={deleteTask}

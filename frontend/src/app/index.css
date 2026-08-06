@@ -2,7 +2,7 @@
   color: #1f2937;
   color-scheme: light;
   font-family: "DM Sans", Arial, sans-serif;
-  background: #f1f5f9;
+  background: #ffffff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -14,13 +14,14 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 body {
   margin: 0;
-  background: #f1f5f9;
+  background: #ffffff;
   overflow: hidden;
 }
 
@@ -30,29 +31,26 @@ input {
 }
 
 .app-shell {
-  display: flex;
+  display: grid;
+  width: 100%;
   height: 100%;
-  min-height: 100%;
-  flex-direction: column;
-  background: #f1f5f9;
+  grid-template-rows: 64px minmax(0, 1fr);
+  overflow: hidden;
+  background: #ffffff;
 }
 
 .toolbar {
-  position: sticky;
+  position: relative;
   z-index: 10;
-  top: 0;
   display: flex;
-  height: 64px;
-  flex: 0 0 64px;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  overflow-x: auto;
+  overflow: visible;
   border-bottom: 1px solid #dbe3ee;
-  background: rgb(255 255 255 / 96%);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 7%);
+  background: #ffffff;
   padding: 0 20px;
-  backdrop-filter: blur(10px);
 }
 
 .toolbar h1 {
@@ -67,42 +65,36 @@ input {
 
 .toolbar-actions {
   display: flex;
-  min-width: max-content;
+  min-width: 0;
   align-items: center;
   gap: 8px;
 }
 
 .autosave-status,
-.export-status {
+.image-action-status {
   min-height: 18px;
   color: #64748b;
   font-size: 12px;
   font-weight: 600;
 }
 
+.image-action-status {
+  width: 170px;
+  flex: 0 0 170px;
+  text-align: right;
+}
+
 .autosave-status button,
-.export-status button {
+.image-action-status button {
   margin-left: 4px;
 }
 
-.chart-title-control {
-  display: grid;
-  gap: 2px;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.chart-title-control input {
-  width: 190px;
-  min-height: 34px;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #1f2937;
-  font-size: 13px;
-  padding: 5px 9px;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+.toolbar-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 8px;
 }
 
 .settings-menu {
@@ -126,6 +118,12 @@ input {
 
 .settings-popover label,
 .task-editor-dialog label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.form-field {
   display: grid;
   gap: 4px;
   font-size: 13px;
@@ -180,6 +178,58 @@ input {
 .task-editor-dialog input[type="color"] {
   min-height: 34px;
   padding: 2px;
+}
+
+.color-suggestion-field {
+  position: relative;
+}
+
+.color-suggestion-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 8px;
+}
+
+.color-suggestion-controls > button,
+.color-suggestion-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.color-swatch {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 1px solid rgb(15 23 42 / 14%);
+  border-radius: 4px;
+}
+
+.color-suggestion-menu {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 4px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 16%);
+  padding: 6px;
+}
+
+.color-suggestion-menu button[aria-selected="true"] {
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .dialog-actions,
@@ -274,30 +324,59 @@ input {
 }
 
 .chart-surface {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
   min-height: 0;
-  flex: 1;
-  background: #f1f5f9;
-  padding: 18px;
+  overflow: hidden;
+  background: #ffffff;
+  padding: 0;
+}
+
+.toolbar-actions button.icon-action {
+  width: 34px;
+  min-height: 34px;
+  justify-content: center;
+  padding: 0;
 }
 
 .chart-viewport {
   width: 100%;
   height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
-  border: 1px solid #dbe3ee;
-  border-radius: 10px;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
   background: #ffffff;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 7%);
-  scrollbar-gutter: stable both-edges;
+  box-shadow: none;
 }
 
 .gantt-chart {
   display: block;
-  max-width: none;
+  width: 100%;
+  height: 100%;
   background: #ffffff;
   font-family: "DM Sans", Arial, sans-serif;
   shape-rendering: geometricPrecision;
+}
+
+.gantt-inline-title {
+  width: 100%;
+  height: 100%;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #1d4ed8;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  padding: 0;
+}
+
+.gantt-inline-title:hover {
+  border-color: #dbeafe;
 }
 
 .gantt-chart-title {
@@ -333,28 +412,24 @@ input {
 
 .gantt-task-name {
   dominant-baseline: middle;
+  font-weight: 700;
 }
 
 .gantt-grid-line {
-  stroke: #e7ecf3;
+  stroke: #e2e8f0;
   stroke-width: 1;
 }
 
 .gantt-today-marker {
   stroke: #f97316;
-  stroke-width: 2;
-}
-
-.gantt-today-label {
-  fill: #ea580c;
-  font-size: 9px;
-  font-weight: 700;
+  stroke-width: 3;
 }
 
 .gantt-legend-label {
   fill: #475569;
   font-size: 11px;
   font-weight: 600;
+  dominant-baseline: middle;
 }
 
 .gantt-task-bar--interactive,
@@ -375,7 +450,7 @@ input {
   stroke-width: 1;
 }
 
-.chart-title-control input:focus-visible,
+.gantt-inline-title:focus-visible,
 .settings-popover input:focus-visible,
 .task-editor-dialog input:focus-visible,
 .toolbar-actions button:focus-visible,
@@ -404,6 +479,7 @@ input {
 }
 
 .recovery-panel {
+  grid-row: 1 / -1;
   width: min(520px, calc(100% - 32px));
   margin: auto;
   border: 1px solid #dbe3ee;
@@ -438,12 +514,8 @@ input {
     gap: 6px;
   }
 
-  .chart-title-control input {
-    width: 165px;
-  }
-
-  .chart-surface {
-    padding: 12px;
+  .toolbar h1 {
+    font-size: 17px;
   }
 }
 
