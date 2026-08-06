@@ -12,7 +12,9 @@ export interface BuildTimelineHeaderOptions { range: TimelineRange; visibleDates
 const weekdayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
 const monthDayFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
+const shortMonthFormatter = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
 const monthYearFormatter = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+const BAND_LABEL_GAP = 8;
 
 function dateAtMidnight(date: IsoDate): Date { return new Date(`${date}T00:00:00Z`); }
 
@@ -35,7 +37,13 @@ function thinLabels(candidates: TimelineHeaderLabel[], dayWidth: number, fontSiz
   return kept;
 }
 
-function buildMonthBands(range: TimelineRange, visibleDates: IsoDate[]): TimelineHeaderBand[] {
+function fittingBandLabel(fullLabel: string, conciseLabel: string, width: number, fontSize: number): string {
+  if (estimateTextWidth(fullLabel, fontSize, 600) + BAND_LABEL_GAP <= width) return fullLabel;
+  if (estimateTextWidth(conciseLabel, fontSize, 600) + BAND_LABEL_GAP <= width) return conciseLabel;
+  return "";
+}
+
+function buildMonthBands(range: TimelineRange, visibleDates: IsoDate[], dayWidth: number, fontSize: number): TimelineHeaderBand[] {
   const crossesYear = range.startDate.slice(0, 4) !== range.endDate.slice(0, 4);
   const bands: TimelineHeaderBand[] = [];
   let startIndex = 0;
@@ -43,7 +51,17 @@ function buildMonthBands(range: TimelineRange, visibleDates: IsoDate[]): Timelin
     const key = visibleDates[startIndex].slice(0, 7);
     let endIndex = startIndex + 1;
     while (endIndex < visibleDates.length && visibleDates[endIndex].slice(0, 7) === key) endIndex += 1;
-    bands.push({ key, label: (crossesYear ? monthYearFormatter : monthFormatter).format(dateAtMidnight(visibleDates[startIndex])), startIndex, endIndex });
+    const date = dateAtMidnight(visibleDates[startIndex]);
+    const fullLabel = (crossesYear ? monthYearFormatter : monthFormatter).format(date);
+    const conciseLabel = crossesYear
+      ? `${Number(key.slice(5, 7))}/${key.slice(2, 4)}`
+      : shortMonthFormatter.format(date);
+    bands.push({
+      key,
+      label: fittingBandLabel(fullLabel, conciseLabel, (endIndex - startIndex) * dayWidth, fontSize),
+      startIndex,
+      endIndex,
+    });
     startIndex = endIndex;
   }
   return bands;
@@ -56,7 +74,7 @@ function sortedGridLines(lines: number[], count: number): number[] {
 export function buildTimelineHeader({ range, visibleDates, dayWidth, fontSize }: BuildTimelineHeaderOptions): TimelineHeaderModel {
   const tier = chooseTimelineHeaderTier(range);
   const dateGridLines = Array.from({ length: visibleDates.length + 1 }, (_, index) => index);
-  const monthBands = buildMonthBands(range, visibleDates);
+  const monthBands = buildMonthBands(range, visibleDates, dayWidth, fontSize);
   const monthGridLines = monthBands.flatMap((band) => [band.startIndex, band.endIndex]);
   if (tier === "detailed-days") {
     const labels = thinLabels(visibleDates.map((date, index) => ({ key: date, label: weekdayFormatter.format(dateAtMidnight(date)), secondaryLabel: monthDayFormatter.format(dateAtMidnight(date)), position: index + 0.5 })), dayWidth, fontSize);
