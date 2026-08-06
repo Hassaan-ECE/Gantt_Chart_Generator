@@ -121,7 +121,7 @@ describe("PNG export bridge", () => {
     expect(exportButton).toBeEnabled();
   });
 
-  it("offers a visible retry that exports the latest chart after rasterization fails", async () => {
+  it("retries from the export icon with the latest chart after rasterization fails", async () => {
     const user = userEvent.setup();
     const exportedTitles: string[] = [];
     vi.mocked(svgToPngArtifact)
@@ -136,22 +136,27 @@ describe("PNG export bridge", () => {
     vi.mocked(save).mockResolvedValue("C:\\Exports\\latest.png");
     render(createElement(App));
 
-    await user.click(await screen.findByRole("button", { name: "Export PNG" }));
-    const retryButton = await screen.findByRole("button", { name: "Retry export" });
-    expect(screen.getByText("Could not export PNG")).toHaveAttribute("title", "canvas failed");
+    const exportButton = await screen.findByRole("button", { name: "Export PNG" });
+    await user.click(exportButton);
+    await waitFor(() => expect(exportButton).toHaveAttribute("data-state", "error"));
+    expect(exportButton).toHaveAttribute("title", "canvas failed");
+    const announcement = screen.getByRole("status", { name: "Image action status" });
+    expect(announcement).toHaveTextContent("canvas failed");
+    expect(announcement).toHaveClass("sr-only");
+    expect(document.querySelector(".image-action-status")).toBeNull();
     expect(save).not.toHaveBeenCalled();
 
     const title = screen.getByRole("textbox", { name: "Chart title" });
     await user.clear(title);
     await user.type(title, "Latest Roadmap");
-    await user.click(retryButton);
+    await user.click(exportButton);
 
     expect(exportedTitles).toEqual(["Execution Timeline", "Latest Roadmap"]);
     expect(save).toHaveBeenCalledWith({
       defaultPath: "Latest Roadmap.png",
       filters: [{ name: "PNG image", extensions: ["png"] }],
     });
-    expect(await screen.findByText("PNG exported")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Image action status" })).toHaveTextContent("PNG exported");
   });
 
   it("shows a retryable error when native PNG writing fails", async () => {
@@ -160,10 +165,12 @@ describe("PNG export bridge", () => {
     vi.mocked(invoke).mockRejectedValue(new Error("disk full"));
     render(createElement(App));
 
-    await user.click(await screen.findByRole("button", { name: "Export PNG" }));
+    const exportButton = await screen.findByRole("button", { name: "Export PNG" });
+    await user.click(exportButton);
 
-    expect(await screen.findByText("Could not export PNG")).toHaveAttribute("title", "disk full");
-    expect(screen.getByRole("button", { name: "Retry export" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Export PNG" })).toBeEnabled();
+    await waitFor(() => expect(exportButton).toHaveAttribute("data-state", "error"));
+    expect(exportButton).toHaveAttribute("title", "disk full");
+    expect(screen.getByRole("status", { name: "Image action status" })).toHaveTextContent("disk full");
+    expect(exportButton).toBeEnabled();
   });
 });

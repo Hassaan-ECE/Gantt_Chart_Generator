@@ -61,10 +61,31 @@ describe("complete editor flow", () => {
     await act(async () => vi.advanceTimersByTimeAsync(300));
     expect(saveChart).toHaveBeenCalled();
 
+    await user.click(screen.getByRole("button", { name: "Choose timeline range" }));
+    await user.clear(screen.getByRole("textbox", { name: "Timeline start" }));
+    await user.type(screen.getByRole("textbox", { name: "Timeline start" }), "2026-08-03");
+    await user.clear(screen.getByRole("textbox", { name: "Timeline end" }));
+    await user.type(screen.getByRole("textbox", { name: "Timeline end" }), "2026-08-28");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(saveChart).toHaveBeenLastCalledWith(expect.objectContaining({
+      settings: expect.objectContaining({
+        timelineRange: { startDate: "2026-08-03", endDate: "2026-08-28" },
+      }),
+    }));
+
+    vi.mocked(svgToPngArtifact).mockImplementation(async (svg) => {
+      expect(svg.textContent).toContain("08/03");
+      expect(svg.textContent).toContain("08/28");
+      expect(svg.textContent).not.toContain("08/31");
+      return artifact;
+    });
+
     await user.click(screen.getByRole("button", { name: "Copy image" }));
     expect(copyPngToClipboard).toHaveBeenCalledWith(artifact);
     expect(choosePngDestination).not.toHaveBeenCalled();
-    expect(await screen.findByText("Copied")).toBeVisible();
+    expect(await screen.findByRole("status", { name: "Image action status" })).toHaveTextContent("Copied");
+    expect(document.querySelector(".image-action-status")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Export PNG" }));
     expect(svgToPngArtifact).toHaveBeenCalledTimes(2);

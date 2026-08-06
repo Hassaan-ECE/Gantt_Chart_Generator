@@ -87,6 +87,45 @@ describe("App shell", () => {
     expect(saveChart).not.toHaveBeenCalled();
   });
 
+  it("persists a custom timeline range and removes it when Auto-fit is restored", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(loadChart).mockResolvedValue(createStarterChart("2026-08-04"));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Choose timeline range" }));
+    await user.clear(screen.getByRole("textbox", { name: "Timeline start" }));
+    await user.type(screen.getByRole("textbox", { name: "Timeline start" }), "2026-08-05");
+    await user.clear(screen.getByRole("textbox", { name: "Timeline end" }));
+    await user.type(screen.getByRole("textbox", { name: "Timeline end" }), "2026-08-28");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    expect(saveChart).toHaveBeenLastCalledWith(expect.objectContaining({
+      settings: expect.objectContaining({
+        timelineRange: { startDate: "2026-08-05", endDate: "2026-08-28" },
+      }),
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Choose timeline range" }));
+    await user.click(screen.getByRole("button", { name: "Auto-fit" }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    const lastSavedDocument = vi.mocked(saveChart).mock.calls.at(-1)?.[0];
+    expect(lastSavedDocument?.settings).not.toHaveProperty("timelineRange");
+  });
+
+  it("shows a persisted custom timeline range at startup", async () => {
+    const persisted = createStarterChart("2026-08-04");
+    persisted.settings.timelineRange = { startDate: "2026-08-05", endDate: "2026-08-28" };
+    vi.mocked(loadChart).mockResolvedValue(persisted);
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Choose timeline range" }))
+      .toHaveTextContent("Aug 5, 2026 – Aug 28, 2026");
+  });
+
   it("preserves invalid source data until reset is explicitly requested", async () => {
     const user = userEvent.setup();
     vi.mocked(loadChart).mockRejectedValue(new Error("invalid chart file"));
@@ -137,5 +176,18 @@ describe("App shell", () => {
         color: "#2f55cf",
       })]),
     }));
+  });
+
+  it("defaults a new task to the custom timeline start", async () => {
+    const persisted = createStarterChart("2026-08-04");
+    persisted.settings.timelineRange = { startDate: "2026-08-05", endDate: "2026-08-28" };
+    vi.mocked(loadChart).mockResolvedValue(persisted);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Add task" }));
+
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-08-05");
+    expect(screen.getByLabelText("End date")).toHaveValue("2026-08-07");
   });
 });

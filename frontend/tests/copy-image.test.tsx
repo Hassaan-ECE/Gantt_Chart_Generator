@@ -47,7 +47,10 @@ describe("Copy image action", () => {
     expect(svgToPngArtifact).toHaveBeenCalledTimes(1);
     expect(copyPngToClipboard).toHaveBeenCalledWith(artifact);
     expect(choosePngDestination).not.toHaveBeenCalled();
-    expect(await screen.findByText("Copied")).toBeVisible();
+    const announcement = await screen.findByRole("status", { name: "Image action status" });
+    expect(announcement).toHaveTextContent("Copied");
+    expect(announcement).toHaveClass("sr-only");
+    expect(document.querySelector(".image-action-status")).toBeNull();
   });
 
   it("retries a failed clipboard write through the same action", async () => {
@@ -57,11 +60,13 @@ describe("Copy image action", () => {
       .mockResolvedValue(undefined);
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Copy image" }));
-    expect(await screen.findByText("Could not copy image")).toHaveAttribute("title", "clipboard busy");
-    await user.click(screen.getByRole("button", { name: "Retry copy" }));
+    const copyButton = await screen.findByRole("button", { name: "Copy image" });
+    await user.click(copyButton);
+    expect(copyButton).toHaveAttribute("data-state", "error");
+    expect(copyButton).toHaveAttribute("title", "clipboard busy");
+    await user.click(copyButton);
 
     expect(copyPngToClipboard).toHaveBeenCalledTimes(2);
-    expect(await screen.findByText("Copied")).toBeVisible();
+    expect(await screen.findByRole("status", { name: "Image action status" })).toHaveTextContent("Copied");
   });
 });

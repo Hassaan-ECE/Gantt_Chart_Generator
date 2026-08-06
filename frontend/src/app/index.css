@@ -70,23 +70,14 @@ input {
   gap: 8px;
 }
 
-.autosave-status,
-.image-action-status {
-  min-height: 18px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.image-action-status {
-  width: 170px;
-  flex: 0 0 170px;
-  text-align: right;
-}
-
-.autosave-status button,
-.image-action-status button {
-  margin-left: 4px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .toolbar-icon-group {
@@ -399,6 +390,22 @@ input {
 .gantt-header-label,
 .gantt-header-band-label {
   text-anchor: middle;
+}
+
+.icon-action[aria-busy="true"] svg {
+  animation: icon-action-busy 800ms ease-in-out infinite alternate;
+}
+
+.icon-action[data-state="error"],
+.icon-action.status-error {
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+@keyframes icon-action-busy {
+  to {
+    opacity: 0.35;
+  }
 }
 
 .gantt-header-label,

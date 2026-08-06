@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, Plus } from "lucide-react";
+import { CircleAlert, Copy, Download, Plus } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
 import { GanttChart } from "@/gantt/GanttChart";
@@ -11,10 +11,12 @@ import {
   POWERPOINT_SLIDE_WIDTH,
   svgToPngArtifact,
 } from "@/gantt/exportPng";
-import type { GanttTask } from "@/gantt/model";
+import type { GanttTask, TimelineRange } from "@/gantt/model";
 import { SettingsMenu } from "@/gantt/SettingsMenu";
-import { createStarterChart } from "@/gantt/starterChart";
+import { createStarterChart, currentLocalIsoDate } from "@/gantt/starterChart";
 import { TaskEditorDialog } from "@/gantt/TaskEditorDialog";
+import { TimelineRangePicker } from "@/gantt/TimelineRangePicker";
+import { resolveTimelineRange } from "@/gantt/timelineRange";
 import { useAutosave } from "@/gantt/useAutosave";
 import { copyPngToClipboard } from "@/integrations/tauri/clipboardBridge";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
@@ -58,6 +60,11 @@ export function App() {
   const lastImageActionRef = useRef<ImageAction>("copy");
   const { ref: chartViewportRef, size: chartViewport } = useElementSize<HTMLDivElement>();
   const autosave = useAutosave(document, autosaveEnabled);
+  const today = useMemo(() => currentLocalIsoDate(), []);
+  const effectiveRange = useMemo(
+    () => resolveTimelineRange(document, today),
+    [document, today],
+  );
   const categoryOptions = useMemo(
     () => Array.from(new Set(document.tasks.map((task) => task.category))),
     [document.tasks],
@@ -121,8 +128,18 @@ export function App() {
   };
 
   const openNewTask = () => {
-    setEditingTask(createNewTask(document.tasks[0]?.startDate ?? new Date().toISOString().slice(0, 10)));
+    setEditingTask(createNewTask(document.settings.timelineRange?.startDate ?? document.tasks[0]?.startDate ?? today));
     setDialogMode("create");
+  };
+
+  const changeTimelineRange = (timelineRange: TimelineRange | undefined) => {
+    setDocument((current) => {
+      const settings = { ...current.settings };
+      if (timelineRange) settings.timelineRange = timelineRange;
+      else delete settings.timelineRange;
+      return { ...current, settings };
+    });
+    setSelectedTaskId(null);
   };
 
   const openTaskEditor = (taskId: string) => {
@@ -239,45 +256,44 @@ export function App() {
       <header className="toolbar">
         <h1>{APP_DISPLAY_NAME}</h1>
         <div className="toolbar-actions">
-          <div className="autosave-status" aria-live="polite">
-            {autosave.phase === "saving" && "Saving…"}
-            {autosave.phase === "saved" && "Saved"}
-            {autosave.phase === "error" && (
-              <>
-                <span title={autosave.message}>Could not save</span>
-                <button type="button" onClick={autosave.retry}>Retry</button>
-              </>
-            )}
-          </div>
-          <div className="image-action-status" aria-live="polite">
-            {imagePhase === "preparing" && (imageRequest === "copy" ? "Copying…" : "Preparing PNG…")}
-            {imagePhase === "copied" && "Copied"}
-            {imagePhase === "exported" && "PNG exported"}
-            {imagePhase === "error" && (
-              <>
-                <span title={imageError}>
-                  {lastImageActionRef.current === "copy" ? "Could not copy image" : "Could not export PNG"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => requestImageAction(lastImageActionRef.current)}
-                >
-                  {lastImageActionRef.current === "copy" ? "Retry copy" : "Retry export"}
-                </button>
-              </>
-            )}
-          </div>
+          <span className="sr-only" role="status" aria-label="Save status" aria-live="polite">
+            {autosave.phase === "saving" ? "Saving" : autosave.phase === "saved" ? "Saved" :
+              autosave.phase === "error" ? `Could not save: ${autosave.message}` : ""}
+          </span>
+          <span className="sr-only" role="status" aria-label="Image action status" aria-live="polite">
+            {imagePhase === "preparing" ? "Preparing image" : imagePhase === "copied" ? "Copied" :
+              imagePhase === "exported" ? "PNG exported" : imagePhase === "error" ? imageError : ""}
+          </span>
+          {autosave.phase === "error" && (
+            <button
+              type="button"
+              className="icon-action status-error"
+              aria-label="Retry save"
+              title={autosave.message}
+              onClick={autosave.retry}
+            >
+              <CircleAlert aria-hidden="true" />
+            </button>
+          )}
           <button type="button" className="primary-action" onClick={openNewTask}>
             <Plus aria-hidden="true" />
             Add task
           </button>
+          <TimelineRangePicker
+            effectiveRange={effectiveRange}
+            customRange={document.settings.timelineRange}
+            onChange={changeTimelineRange}
+          />
           <div className="toolbar-icon-group" role="group" aria-label="Chart image actions">
             <button
               type="button"
               className="icon-action"
               aria-label="Copy image"
-              title="Copy image for PowerPoint"
-              disabled={imagePhase === "preparing"}
+              aria-busy={imagePhase === "preparing" && imageRequest === "copy" ? true : undefined}
+              data-state={imagePhase === "error" && lastImageActionRef.current === "copy" ? "error" : undefined}
+              title={imagePhase === "error" && lastImageActionRef.current === "copy"
+                ? imageError
+                : "Copy image for PowerPoint"}
               onClick={() => requestImageAction("copy")}
             >
               <Copy aria-hidden="true" />
@@ -286,8 +302,11 @@ export function App() {
               type="button"
               className="icon-action"
               aria-label="Export PNG"
-              title="Export PowerPoint-ready PNG"
-              disabled={imagePhase === "preparing"}
+              aria-busy={imagePhase === "preparing" && imageRequest === "export" ? true : undefined}
+              data-state={imagePhase === "error" && lastImageActionRef.current === "export" ? "error" : undefined}
+              title={imagePhase === "error" && lastImageActionRef.current === "export"
+                ? imageError
+                : "Export PowerPoint-ready PNG"}
               onClick={() => requestImageAction("export")}
             >
               <Download aria-hidden="true" />
