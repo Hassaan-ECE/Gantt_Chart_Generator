@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { currentLocalIsoDate } from "@/gantt/starterChart";
 import { InlineChartTitle } from "@/gantt/InlineChartTitle";
 import { calculateChartLayout, estimateTextWidth, type ChartViewport } from "@/gantt/layout";
-import type { ChartDocument, GanttTask, IsoDate } from "@/gantt/model";
+import type { ChartDocument, GanttTask } from "@/gantt/model";
 import { TaskBar } from "@/gantt/TaskBar";
 
 export interface GanttChartProps {
@@ -18,14 +18,6 @@ export interface GanttChartProps {
   onCommitTask?: (task: GanttTask) => void;
   onClearSelection?: () => void;
   onTitleCommit?: (title: string) => void;
-}
-
-function formatWeekday(date: IsoDate): string {
-  return new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
-}
-
-function formatDate(date: IsoDate): string {
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
 }
 
 function withPreview(document: ChartDocument, previewTask?: GanttTask): ChartDocument {
@@ -95,14 +87,8 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
   const today = currentLocalIsoDate();
   const layout = calculateChartLayout(document, today, props.viewport);
   const { metrics } = layout;
-  const gridBottom = metrics.headerHeight + document.tasks.length * metrics.rowHeight;
-  const todayIndex = layout.visibleDates.indexOf(today);
-  const todayOffset = todayIndex >= 0
-    ? todayIndex + 0.5
-    : (() => {
-        const nextVisibleIndex = layout.visibleDates.findIndex((date) => date > today);
-        return nextVisibleIndex === -1 ? layout.visibleDates.length : nextVisibleIndex;
-      })();
+  const gridBottom = layout.height - metrics.legendHeight;
+  const timelineX = (position: number) => metrics.labelWidth + position * metrics.dayWidth;
 
   return (
     <svg
@@ -135,18 +121,25 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
         <text className="gantt-chart-title" x={metrics.padding} y={metrics.headerHeight * 0.42} style={{ fontSize: metrics.titleFontSize }}>{document.title}</text>
       )}
       <text className="gantt-chart-label" x={metrics.padding} y={metrics.headerHeight * 0.8} style={{ fontSize: metrics.dateFontSize }}>Task</text>
-      {layout.visibleDates.map((date, index) => {
-        const x = metrics.labelWidth + index * metrics.dayWidth;
-        const weekday = formatWeekday(date);
-        return (
-          <g key={date}>
-            <line className="gantt-grid-line" x1={x} y1={0} x2={x} y2={gridBottom} />
-            <text className="gantt-date-weekday" x={x + metrics.dayWidth / 2} y={metrics.headerHeight * 0.42} style={{ fontSize: metrics.dateFontSize }}>{weekday}</text>
-            <text className="gantt-date-value" x={x + metrics.dayWidth / 2} y={metrics.headerHeight * 0.78} style={{ fontSize: metrics.dateFontSize }}>{formatDate(date)}</text>
+      <g className="gantt-header" data-tier={layout.header.tier}>
+        {layout.header.gridLines.map((position) => (
+          <line key={position} className="gantt-grid-line" x1={timelineX(position)} y1={0} x2={timelineX(position)} y2={gridBottom} />
+        ))}
+        {layout.header.bands.map((band) => (
+          <g key={band.key} className="gantt-header-band">
+            <line className="gantt-month-divider" x1={timelineX(band.startIndex)} y1={0} x2={timelineX(band.startIndex)} y2={metrics.headerHeight * 0.5} />
+            <text className="gantt-header-band-label" x={timelineX((band.startIndex + band.endIndex) / 2)} y={metrics.headerHeight * 0.28} style={{ fontSize: metrics.dateFontSize }}>{band.label}</text>
           </g>
-        );
-      })}
-      <line className="gantt-grid-line" x1={layout.width} y1={0} x2={layout.width} y2={gridBottom} />
+        ))}
+        {layout.header.labels.map((label) => layout.header.tier === "detailed-days" ? (
+          <text key={label.key} className="gantt-header-label gantt-date-weekday" x={timelineX(label.position)} y={metrics.headerHeight * 0.34} style={{ fontSize: metrics.dateFontSize }}>
+            <tspan x={timelineX(label.position)}>{label.label}</tspan>
+            <tspan className="gantt-date-value" x={timelineX(label.position)} dy="1.35em">{label.secondaryLabel}</tspan>
+          </text>
+        ) : (
+          <text key={label.key} className="gantt-header-label" x={timelineX(label.position)} y={metrics.headerHeight * (layout.header.bands.length > 0 ? 0.78 : 0.62)} style={{ fontSize: metrics.dateFontSize }}>{label.label}</text>
+        ))}
+      </g>
       <line className="gantt-grid-line" x1={0} y1={metrics.headerHeight} x2={layout.width} y2={metrics.headerHeight} />
       {layout.tasks.map((geometry) => {
         const taskNameWidth = Math.max(0.01, metrics.labelWidth - metrics.padding * 2);
@@ -179,19 +172,21 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
               </tspan>
             ))}
           </text>
-          <TaskBar
-            geometry={geometry}
-            mode={props.mode}
-            selected={props.selectedTaskId === geometry.id}
-            settings={document.settings}
-            dayWidth={metrics.dayWidth}
-            handleWidth={metrics.handleWidth}
-            hitSlop={metrics.hitSlop}
-            onSelectTask={props.onSelectTask}
-            onEditTask={props.onEditTask}
-            onPreviewTask={props.onPreviewTask}
-            onCommitTask={props.onCommitTask}
-          />
+          {geometry.isVisible && (
+            <TaskBar
+              geometry={geometry}
+              mode={props.mode}
+              selected={props.selectedTaskId === geometry.id}
+              settings={document.settings}
+              dayWidth={metrics.dayWidth}
+              handleWidth={metrics.handleWidth}
+              hitSlop={metrics.hitSlop}
+              onSelectTask={props.onSelectTask}
+              onEditTask={props.onEditTask}
+              onPreviewTask={props.onPreviewTask}
+              onCommitTask={props.onCommitTask}
+            />
+          )}
           </g>
         );
       })}
@@ -206,15 +201,11 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
           );
         })}
       </g>
-      <g className="gantt-today" pointerEvents="none">
-        <line
-          className="gantt-today-marker"
-          x1={metrics.labelWidth + todayOffset * metrics.dayWidth}
-          y1={metrics.headerHeight}
-          x2={metrics.labelWidth + todayOffset * metrics.dayWidth}
-          y2={gridBottom}
-        />
-      </g>
+      {layout.todayX !== null && (
+        <g className="gantt-today" pointerEvents="none">
+          <line className="gantt-today-marker" x1={layout.todayX} y1={metrics.headerHeight} x2={layout.todayX} y2={gridBottom} />
+        </g>
+      )}
     </svg>
   );
 });

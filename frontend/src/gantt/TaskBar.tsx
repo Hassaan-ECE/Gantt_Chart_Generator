@@ -105,9 +105,8 @@ export function TaskBar({ geometry, mode, selected, settings, dayWidth, handleWi
         onPointerCancel={isEditor ? moveDrag.onPointerCancel : undefined}
         onLostPointerCapture={isEditor ? moveDrag.onLostPointerCapture : undefined}
       />
-      {isEditor && selected && (
-        <>
-          <rect
+      {isEditor && selected && !geometry.startClipped && (
+        <rect
             data-testid="resize-handle"
             x={geometry.x}
             y={geometry.y}
@@ -125,7 +124,9 @@ export function TaskBar({ geometry, mode, selected, settings, dayWidth, handleWi
             onPointerCancel={startResizeDrag.onPointerCancel}
             onLostPointerCapture={startResizeDrag.onLostPointerCapture}
           />
-          <rect
+      )}
+      {isEditor && selected && !geometry.endClipped && (
+        <rect
             data-testid="resize-handle"
             x={geometry.x + geometry.width - handleWidth}
             y={geometry.y}
@@ -143,7 +144,6 @@ export function TaskBar({ geometry, mode, selected, settings, dayWidth, handleWi
             onPointerCancel={endResizeDrag.onPointerCancel}
             onLostPointerCapture={endResizeDrag.onLostPointerCapture}
           />
-        </>
       )}
     </g>
   );

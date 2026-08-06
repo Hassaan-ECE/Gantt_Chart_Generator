@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GanttChart } from "@/gantt/GanttChart";
+import { calculateChartLayout } from "@/gantt/layout";
 import { createStarterChart } from "@/gantt/starterChart";
 
 afterEach(cleanup);
@@ -163,6 +164,46 @@ describe("bar pointer interactions", () => {
 
     expect(onSelectTask).not.toHaveBeenCalled();
     expect(onEditTask).not.toHaveBeenCalled();
+  });
+
+  it("exposes only the real end handle for a selected left-clipped task", () => {
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate: "2026-08-05", endDate: "2026-08-10" };
+    chart.tasks = [{ ...chart.tasks[0], startDate: "2026-08-03", endDate: "2026-08-06" }];
+    render(<GanttChart document={chart} mode="editor" selectedTaskId={chart.tasks[0].id} />);
+
+    expect(screen.getAllByTestId("resize-handle")).toHaveLength(1);
+  });
+
+  it("exposes no handles for a selected task clipped at both endpoints", () => {
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate: "2026-08-05", endDate: "2026-08-10" };
+    chart.tasks = [{ ...chart.tasks[0], startDate: "2026-08-03", endDate: "2026-08-12" }];
+    render(<GanttChart document={chart} mode="editor" selectedTaskId={chart.tasks[0].id} />);
+
+    expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["2026-08-03", "2026-08-14"],
+    ["2026-08-01", "2026-08-28"],
+    ["2026-08-01", "2026-10-31"],
+    ["2026-03-01", "2026-12-01"],
+  ])("moves a body bar one day at the rendered width for %s through %s", (startDate, endDate) => {
+    const onCommitTask = vi.fn();
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate, endDate };
+    chart.tasks = [{ ...chart.tasks[0], startDate: "2026-08-04", endDate: "2026-08-04" }];
+    const layout = calculateChartLayout(chart, "2026-08-04");
+    render(<GanttChart document={chart} mode="editor" selectedTaskId={chart.tasks[0].id} onCommitTask={onCommitTask} />);
+    const bar = screen.getByTestId("task-bar");
+    installPointerCaptureSpies(bar);
+
+    fireEvent.pointerDown(bar, { pointerId: 20, clientX: 100 });
+    fireEvent.pointerMove(bar, { pointerId: 20, clientX: 100 + layout.metrics.dayWidth });
+    fireEvent.pointerUp(bar, { pointerId: 20, clientX: 100 + layout.metrics.dayWidth });
+
+    expect(onCommitTask).toHaveBeenCalledWith(expect.objectContaining({ startDate: "2026-08-05" }));
   });
 
   it("ignores a competing pointer and its stale lost-capture event", () => {

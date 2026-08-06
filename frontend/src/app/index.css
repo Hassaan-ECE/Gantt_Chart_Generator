@@ -387,15 +387,33 @@ input {
 }
 
 .gantt-chart-label,
-.gantt-date-weekday {
+.gantt-date-weekday,
+.gantt-header-band-label {
   fill: #475569;
   font-size: 12px;
   font-weight: 700;
 }
 
 .gantt-date-weekday,
-.gantt-date-value {
+.gantt-date-value,
+.gantt-header-label,
+.gantt-header-band-label {
   text-anchor: middle;
+}
+
+.gantt-header-label,
+.gantt-header-band-label {
+  fill: #475569;
+  font-weight: 600;
+}
+
+.gantt-header-band-label {
+  font-weight: 700;
+}
+
+.gantt-month-divider {
+  stroke: #cbd5e1;
+  stroke-width: 1;
 }
 
 .gantt-date-value,

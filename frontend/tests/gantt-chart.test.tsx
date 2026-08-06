@@ -55,6 +55,30 @@ describe("GanttChart", () => {
     expect(screen.getAllByText("Tue")[0]).toBeVisible();
   });
 
+  it.each([
+    ["2026-08-03", "2026-08-14", "detailed-days", "Aug 3"],
+    ["2026-08-01", "2026-08-28", "compact-days", "08/03"],
+    ["2026-08-01", "2026-10-31", "month-days", "August"],
+    ["2026-01-01", "2026-07-01", "month-weeks", "Week 1"],
+  ])("renders the %s through %s range with a semantic %s header", (startDate, endDate, tier, label) => {
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate, endDate };
+    const { container } = render(<GanttChart document={chart} mode="editor" selectedTaskId={null} />);
+
+    expect(container.querySelector(`.gantt-header[data-tier="${tier}"]`)).not.toBeNull();
+    expect(screen.getByText(label)).toBeVisible();
+  });
+
+  it("keeps outside task rows but omits their bars", () => {
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate: "2026-09-01", endDate: "2026-09-14" };
+    render(<GanttChart document={chart} mode="editor" selectedTaskId={null} />);
+
+    expect(screen.getAllByTestId("task-row")).toHaveLength(chart.tasks.length);
+    chart.tasks.forEach((task) => expect(screen.getByText(task.name)).toBeVisible());
+    expect(screen.queryByTestId("task-bar")).not.toBeInTheDocument();
+  });
+
   it("keeps task names prominent by wrapping them before shrinking the type", () => {
     const { container } = render(
       <GanttChart
@@ -117,6 +141,16 @@ describe("GanttChart", () => {
 
     expect(container.querySelector(".gantt-today")).not.toBeNull();
     expect(screen.queryByText("Today")).not.toBeInTheDocument();
+  });
+
+  it("omits today when the custom range excludes it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-05T12:00:00"));
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate: "2026-09-01", endDate: "2026-09-14" };
+    const { container } = render(<GanttChart document={chart} mode="editor" selectedTaskId={null} />);
+
+    expect(container.querySelector(".gantt-today")).toBeNull();
   });
 
   it("shows the current-day seam even when today is a hidden weekend far from every task", () => {
