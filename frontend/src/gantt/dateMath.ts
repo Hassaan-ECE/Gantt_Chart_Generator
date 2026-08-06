@@ -15,6 +15,17 @@ export function addCalendarDays(value: IsoDate, amount: number): IsoDate {
   return fromDayNumber(toDayNumber(value) + amount);
 }
 
+export function addCalendarMonths(value: IsoDate, amount: number): IsoDate {
+  const [year, month, day] = value.split("-").map(Number);
+  const targetMonth = month - 1 + amount;
+  const targetYear = year + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(targetYear, normalizedMonth, Math.min(day, lastDay)))
+    .toISOString()
+    .slice(0, 10);
+}
+
 export function calendarDayDifference(from: IsoDate, to: IsoDate): number {
   return toDayNumber(to) - toDayNumber(from);
 }
