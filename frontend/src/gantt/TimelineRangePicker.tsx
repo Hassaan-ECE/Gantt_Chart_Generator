@@ -1,8 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { addCalendarDays, addCalendarMonths } from "@/gantt/dateMath";
 import { isValidIsoDate, type IsoDate, type TimelineRange } from "@/gantt/model";
+import { currentLocalIsoDate } from "@/gantt/starterChart";
 import { formatTimelineRangeSummary } from "@/gantt/timelineRange";
 
 export interface TimelineRangePickerProps {
@@ -47,15 +56,18 @@ function isValidRange(range: TimelineRange): boolean {
 }
 
 export function TimelineRangePicker({ effectiveRange, customRange, onChange }: TimelineRangePickerProps) {
+  const dialogId = `${useId()}-timeline-range-dialog`;
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState<TimelineRange>({ ...effectiveRange });
   const [activeEndpoint, setActiveEndpoint] = useState<TimelineEndpoint>("startDate");
   const [monthStart, setMonthStart] = useState<IsoDate>(firstOfMonth(effectiveRange.startDate));
   const [focusedDate, setFocusedDate] = useState<IsoDate>(effectiveRange.startDate);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const calendarFocusRequestedRef = useRef(false);
   const dates = useMemo(() => calendarDates(monthStart), [monthStart]);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentLocalIsoDate();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,7 +75,10 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
       if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsOpen(false);
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("mousedown", closeWhenOutside);
     document.addEventListener("keydown", closeOnEscape);
@@ -74,7 +89,8 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
   }, [isOpen]);
 
   useLayoutEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !calendarFocusRequestedRef.current) return;
+    calendarFocusRequestedRef.current = false;
     calendarRef.current
       ?.querySelector<HTMLButtonElement>(`[data-date="${focusedDate}"]`)
       ?.focus();
@@ -90,6 +106,7 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
     setActiveEndpoint("startDate");
     setMonthStart(firstOfMonth(nextDraft.startDate));
     setFocusedDate(nextDraft.startDate);
+    calendarFocusRequestedRef.current = true;
     setIsOpen(true);
   };
 
@@ -100,6 +117,7 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
   };
 
   const moveFocus = (date: IsoDate) => {
+    calendarFocusRequestedRef.current = true;
     setFocusedDate(date);
     setMonthStart(firstOfMonth(date));
   };
@@ -128,10 +146,13 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
   return (
     <div className="timeline-range-picker" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="timeline-range-trigger"
         aria-label="Choose timeline range"
         aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-controls={dialogId}
         title="Choose timeline range"
         onClick={openPicker}
       >
@@ -140,7 +161,12 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
       </button>
 
       {isOpen && (
-        <div className="timeline-range-popover" role="group" aria-label="Timeline range options">
+        <div
+          className="timeline-range-popover"
+          id={dialogId}
+          role="dialog"
+          aria-label="Choose timeline range"
+        >
           <div className="timeline-range-fields">
             <label>
               <span>Start</span>
@@ -196,37 +222,61 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
           </div>
 
           <div className="timeline-range-calendar" ref={calendarRef} role="grid" aria-label="Timeline calendar">
-            {weekdayLabels.map((label) => (
-              <div className="timeline-range-weekday" role="columnheader" key={label}>{label}</div>
+            <div className="timeline-range-calendar-row" role="row">
+              {weekdayLabels.map((label) => (
+                <div className="timeline-range-weekday" role="columnheader" key={label}>{label}</div>
+              ))}
+            </div>
+            {Array.from({ length: 6 }, (_, weekIndex) => (
+              <div className="timeline-range-calendar-row" role="row" key={dates[weekIndex * 7]}>
+                {dates.slice(weekIndex * 7, weekIndex * 7 + 7).map((date) => {
+                  const isStart = date === draft.startDate;
+                  const isEnd = date === draft.endDate;
+                  const isEndpoint = isStart || isEnd;
+                  const isInRange = isValidRange(draft) && date > draft.startDate && date < draft.endDate;
+                  const isSelected = isEndpoint || isInRange;
+                  const selectionDescription = isStart && isEnd
+                    ? "Range start and end"
+                    : isStart
+                      ? "Range start"
+                      : isEnd
+                        ? "Range end"
+                        : isInRange
+                          ? "In selected range"
+                          : undefined;
+                  const className = [
+                    "timeline-range-day",
+                    date.slice(0, 7) !== monthStart.slice(0, 7) && "timeline-range-day--outside",
+                    date === today && "timeline-range-day--today",
+                    isStart && "timeline-range-day--start",
+                    isEnd && "timeline-range-day--end",
+                    isEndpoint && "timeline-range-day--endpoint",
+                    isInRange && "timeline-range-day--in-range",
+                  ].filter(Boolean).join(" ");
+                  return (
+                    <div
+                      className="timeline-range-calendar-cell"
+                      role="gridcell"
+                      aria-selected={isSelected}
+                      key={date}
+                    >
+                      <button
+                        type="button"
+                        className={className}
+                        aria-label={dateNameFormatter.format(utcDate(date))}
+                        aria-description={selectionDescription}
+                        data-date={date}
+                        tabIndex={date === focusedDate ? 0 : -1}
+                        onClick={() => selectDate(date)}
+                        onKeyDown={(event) => handleCalendarKeyDown(event, date)}
+                      >
+                        {Number(date.slice(-2))}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             ))}
-            {dates.map((date) => {
-              const isEndpoint = date === draft.startDate || date === draft.endDate;
-              const isInRange = isValidRange(draft) && date > draft.startDate && date < draft.endDate;
-              const className = [
-                "timeline-range-day",
-                date.slice(0, 7) !== monthStart.slice(0, 7) && "timeline-range-day--outside",
-                date === today && "timeline-range-day--today",
-                date === draft.startDate && "timeline-range-day--start",
-                date === draft.endDate && "timeline-range-day--end",
-                isEndpoint && "timeline-range-day--endpoint",
-                isInRange && "timeline-range-day--in-range",
-              ].filter(Boolean).join(" ");
-              return (
-                <button
-                  type="button"
-                  className={className}
-                  aria-label={dateNameFormatter.format(utcDate(date))}
-                  aria-pressed={isEndpoint}
-                  data-date={date}
-                  tabIndex={date === focusedDate ? 0 : -1}
-                  key={date}
-                  onClick={() => selectDate(date)}
-                  onKeyDown={(event) => handleCalendarKeyDown(event, date)}
-                >
-                  {Number(date.slice(-2))}
-                </button>
-              );
-            })}
           </div>
 
           <div className="timeline-range-actions">

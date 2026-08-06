@@ -510,7 +510,7 @@ input {
   z-index: 5;
   top: calc(100% + 8px);
   right: 0;
-  width: 316px;
+  width: min(316px, calc(100vw - 24px));
   border: 1px solid #dbe3ee;
   border-radius: 12px;
   background: #ffffff;
@@ -601,6 +601,11 @@ input {
   grid-template-columns: repeat(7, 32px);
   justify-content: space-between;
   gap: 3px;
+}
+
+.timeline-range-calendar-row,
+.timeline-range-calendar-cell {
+  display: contents;
 }
 
 .timeline-range-weekday {
@@ -734,6 +739,12 @@ input {
 
   .toolbar h1 {
     font-size: 17px;
+  }
+}
+
+@media (max-width: 360px) {
+  .timeline-range-fields {
+    grid-template-columns: 1fr;
   }
 }
 
