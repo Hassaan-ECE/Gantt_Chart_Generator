@@ -56,7 +56,9 @@ function isValidRange(range: TimelineRange): boolean {
 }
 
 export function TimelineRangePicker({ effectiveRange, customRange, onChange }: TimelineRangePickerProps) {
-  const dialogId = `${useId()}-timeline-range-dialog`;
+  const pickerId = useId();
+  const dialogId = `${pickerId}-timeline-range-dialog`;
+  const summaryId = `${pickerId}-timeline-range-summary`;
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState<TimelineRange>({ ...effectiveRange });
   const [activeEndpoint, setActiveEndpoint] = useState<TimelineEndpoint>("startDate");
@@ -116,6 +118,14 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
     if (activeEndpoint === "startDate") setActiveEndpoint("endDate");
   };
 
+  const activateEndpoint = (endpoint: TimelineEndpoint) => {
+    setActiveEndpoint(endpoint);
+    const endpointDate = draft[endpoint];
+    if (!isValidIsoDate(endpointDate)) return;
+    setMonthStart(firstOfMonth(endpointDate));
+    setFocusedDate(endpointDate);
+  };
+
   const moveFocus = (date: IsoDate) => {
     calendarFocusRequestedRef.current = true;
     setFocusedDate(date);
@@ -153,11 +163,12 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-controls={dialogId}
+        aria-describedby={summaryId}
         title="Choose timeline range"
         onClick={openPicker}
       >
         <CalendarRange aria-hidden="true" />
-        <span>{formatTimelineRangeSummary(effectiveRange)}</span>
+        <span id={summaryId}>{formatTimelineRangeSummary(effectiveRange)}</span>
       </button>
 
       {isOpen && (
@@ -175,7 +186,7 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
                 inputMode="numeric"
                 aria-label="Timeline start"
                 value={draft.startDate}
-                onFocus={() => setActiveEndpoint("startDate")}
+                onFocus={() => activateEndpoint("startDate")}
                 onChange={(event) => setDraft((current) => ({ ...current, startDate: event.target.value }))}
               />
             </label>
@@ -186,7 +197,7 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
                 inputMode="numeric"
                 aria-label="Timeline end"
                 value={draft.endDate}
-                onFocus={() => setActiveEndpoint("endDate")}
+                onFocus={() => activateEndpoint("endDate")}
                 onChange={(event) => setDraft((current) => ({ ...current, endDate: event.target.value }))}
               />
             </label>
@@ -197,7 +208,7 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
               type="button"
               aria-label="Edit timeline start"
               aria-pressed={activeEndpoint === "startDate"}
-              onClick={() => setActiveEndpoint("startDate")}
+              onClick={() => activateEndpoint("startDate")}
             >
               Start
             </button>
@@ -205,7 +216,7 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
               type="button"
               aria-label="Edit timeline end"
               aria-pressed={activeEndpoint === "endDate"}
-              onClick={() => setActiveEndpoint("endDate")}
+              onClick={() => activateEndpoint("endDate")}
             >
               End
             </button>

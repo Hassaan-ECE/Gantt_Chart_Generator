@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TimelineRangePicker } from "@/gantt/TimelineRangePicker";
 
 const effectiveRange = { startDate: "2026-08-01", endDate: "2026-08-14" };
+const multiMonthRange = { startDate: "2026-08-01", endDate: "2026-10-20" };
 
 afterEach(cleanup);
 
@@ -17,6 +18,8 @@ describe("TimelineRangePicker", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
     expect(trigger).toHaveTextContent("Aug 1, 2026 – Aug 14, 2026");
+    expect(trigger).toHaveAccessibleName("Choose timeline range");
+    expect(trigger).toHaveAccessibleDescription("Aug 1, 2026 – Aug 14, 2026");
   });
 
   it("connects the trigger to a labeled dialog", async () => {
@@ -233,5 +236,46 @@ describe("TimelineRangePicker", () => {
 
     expect(screen.getByRole("textbox", { name: "Timeline start" })).toHaveValue("2026-08-01");
     expect(screen.getByRole("textbox", { name: "Timeline end" })).toHaveValue("2026-08-25");
+  });
+
+  it("navigates to each endpoint month when its endpoint button is activated", async () => {
+    const user = userEvent.setup();
+    render(
+      <TimelineRangePicker
+        effectiveRange={multiMonthRange}
+        customRange={multiMonthRange}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Choose timeline range" }));
+    expect(screen.getByText("August 2026")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Edit timeline end" }));
+    expect(screen.getByText("October 2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tuesday, October 20, 2026" })).toHaveAttribute("tabindex", "0");
+
+    await user.click(screen.getByRole("button", { name: "Edit timeline start" }));
+    expect(screen.getByText("August 2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Saturday, August 1, 2026" })).toHaveAttribute("tabindex", "0");
+  });
+
+  it("navigates to each endpoint month when its textbox receives focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <TimelineRangePicker
+        effectiveRange={multiMonthRange}
+        customRange={multiMonthRange}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Choose timeline range" }));
+
+    await user.click(screen.getByRole("textbox", { name: "Timeline end" }));
+    expect(screen.getByText("October 2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tuesday, October 20, 2026" })).toHaveAttribute("tabindex", "0");
+
+    await user.click(screen.getByRole("textbox", { name: "Timeline start" }));
+    expect(screen.getByText("August 2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Saturday, August 1, 2026" })).toHaveAttribute("tabindex", "0");
   });
 });
