@@ -184,6 +184,26 @@ describe("bar pointer interactions", () => {
     expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
   });
 
+  it("keeps a selected weekend-only marker interactive without resize handles", () => {
+    const onSelectTask = vi.fn();
+    const chart = createStarterChart("2026-08-04");
+    chart.settings.timelineRange = { startDate: "2026-08-03", endDate: "2026-08-10" };
+    chart.tasks = [{ ...chart.tasks[0], startDate: "2026-08-08", endDate: "2026-08-08" }];
+    render(
+      <GanttChart
+        document={chart}
+        mode="editor"
+        selectedTaskId={chart.tasks[0].id}
+        onSelectTask={onSelectTask}
+      />,
+    );
+
+    expect(screen.getByTestId("task-bar")).toBeInTheDocument();
+    expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `${chart.tasks[0].name} task` }));
+    expect(onSelectTask).toHaveBeenCalledWith(chart.tasks[0].id);
+  });
+
   it.each([
     ["2026-08-03", "2026-08-14"],
     ["2026-08-01", "2026-08-28"],
