@@ -124,6 +124,7 @@ describe("TimelineRangePicker", () => {
     await user.click(screen.getByRole("button", { name: "Choose timeline range" }));
 
     const grid = screen.getByRole("grid", { name: "Timeline calendar" });
+    expect(grid).toHaveAttribute("aria-multiselectable", "true");
     const rows = within(grid).getAllByRole("row");
     expect(rows).toHaveLength(7);
     expect(within(rows[0]).getAllByRole("columnheader")).toHaveLength(7);

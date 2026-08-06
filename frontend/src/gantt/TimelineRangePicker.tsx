@@ -221,7 +221,13 @@ export function TimelineRangePicker({ effectiveRange, customRange, onChange }: T
             </button>
           </div>
 
-          <div className="timeline-range-calendar" ref={calendarRef} role="grid" aria-label="Timeline calendar">
+          <div
+            className="timeline-range-calendar"
+            ref={calendarRef}
+            role="grid"
+            aria-label="Timeline calendar"
+            aria-multiselectable="true"
+          >
             <div className="timeline-range-calendar-row" role="row">
               {weekdayLabels.map((label) => (
                 <div className="timeline-range-weekday" role="columnheader" key={label}>{label}</div>
