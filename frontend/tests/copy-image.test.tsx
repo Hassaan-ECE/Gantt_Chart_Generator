@@ -1,9 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/app/App";
 import { svgToPngArtifact, type PngArtifact } from "@/gantt/exportPng";
+import { createStarterChart } from "@/gantt/starterChart";
 import { copyPngToClipboard } from "@/integrations/tauri/clipboardBridge";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
 import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridge";
@@ -33,7 +34,18 @@ beforeEach(() => {
   vi.mocked(writePng).mockReset().mockResolvedValue(undefined);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+function expectTodayAlignedWith(svg: SVGSVGElement, dateLabel: string) {
+  const label = Array.from(svg.querySelectorAll<SVGTextElement>(".gantt-header-label"))
+    .find((candidate) => candidate.textContent === dateLabel);
+  expect(label).toBeDefined();
+  expect(svg.querySelector(".gantt-today-marker")?.getAttribute("x1"))
+    .toBe(label?.getAttribute("x"));
+}
 
 describe("Copy image action", () => {
   it("copies the PowerPoint-ready artifact without opening a save dialog", async () => {
@@ -68,5 +80,36 @@ describe("Copy image action", () => {
 
     expect(copyPngToClipboard).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("status", { name: "Image action status" })).toHaveTextContent("Copied");
+  });
+
+  it("keeps the toolbar, editor, and copied SVG on the same local date across midnight", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 7, 5, 23, 59, 59, 900));
+    const emptyChart = { ...createStarterChart("2026-08-05"), tasks: [] };
+    vi.mocked(loadChart).mockResolvedValue(emptyChart);
+    let stagedSvg: SVGSVGElement | null = null;
+    vi.mocked(svgToPngArtifact).mockImplementation(async (svg) => {
+      stagedSvg = svg.cloneNode(true) as SVGSVGElement;
+      return artifact;
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<App />);
+
+    const rangeTrigger = await screen.findByRole("button", { name: "Choose timeline range" });
+    expect(rangeTrigger).toHaveTextContent("Jul 28, 2026 – Aug 13, 2026");
+    const editorSvg = screen.getByRole("group", { name: "Execution Timeline Gantt chart" }) as unknown as SVGSVGElement;
+    expectTodayAlignedWith(editorSvg, "08/05");
+
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    await user.click(screen.getByRole("button", { name: "Copy image" }));
+
+    expect(editorSvg.textContent).toContain("07/29");
+    expect(editorSvg.textContent).toContain("08/14");
+    expectTodayAlignedWith(editorSvg, "08/06");
+    expect(stagedSvg).not.toBeNull();
+    expect(stagedSvg!.textContent).toContain("07/29");
+    expect(stagedSvg!.textContent).toContain("08/14");
+    expectTodayAlignedWith(stagedSvg!, "08/06");
+    expect(rangeTrigger).toHaveTextContent("Jul 29, 2026 – Aug 14, 2026");
   });
 });

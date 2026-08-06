@@ -43,6 +43,7 @@ function createNewTask(startDate: string): GanttTask {
 
 export function App() {
   const [document, setDocument] = useState(() => createStarterChart());
+  const [today, setToday] = useState(currentLocalIsoDate);
   const [startupPhase, setStartupPhase] = useState<"loading" | "ready" | "error">("loading");
   const [startupError, setStartupError] = useState("");
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
@@ -60,7 +61,6 @@ export function App() {
   const lastImageActionRef = useRef<ImageAction>("copy");
   const { ref: chartViewportRef, size: chartViewport } = useElementSize<HTMLDivElement>();
   const autosave = useAutosave(document, autosaveEnabled);
-  const today = useMemo(() => currentLocalIsoDate(), []);
   const effectiveRange = useMemo(
     () => resolveTimelineRange(document, today),
     [document, today],
@@ -73,6 +73,21 @@ export function App() {
     () => Array.from(new Set(document.tasks.map((task) => task.color.toLowerCase()))),
     [document.tasks],
   );
+
+  useEffect(() => {
+    let midnightTimer: ReturnType<typeof setTimeout>;
+    const scheduleNextLocalMidnight = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      midnightTimer = globalThis.setTimeout(() => {
+        setToday(currentLocalIsoDate());
+        scheduleNextLocalMidnight();
+      }, Math.max(1, nextMidnight.getTime() - now.getTime()));
+    };
+    scheduleNextLocalMidnight();
+    return () => globalThis.clearTimeout(midnightTimer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -323,6 +338,7 @@ export function App() {
           {chartViewport.width > 0 && chartViewport.height > 0 && (
             <GanttChart
               document={document}
+              today={today}
               mode="editor"
               selectedTaskId={selectedTaskId}
               previewTask={previewTask ?? undefined}
@@ -345,6 +361,7 @@ export function App() {
           <GanttChart
             ref={exportSvgRef}
             document={document}
+            today={today}
             mode="export"
             selectedTaskId={null}
             viewport={POWERPOINT_CHART_VIEWPORT}

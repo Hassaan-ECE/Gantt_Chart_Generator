@@ -3,11 +3,12 @@ import { forwardRef } from "react";
 import { currentLocalIsoDate } from "@/gantt/starterChart";
 import { InlineChartTitle } from "@/gantt/InlineChartTitle";
 import { calculateChartLayout, estimateTextWidth, type ChartViewport } from "@/gantt/layout";
-import type { ChartDocument, GanttTask } from "@/gantt/model";
+import type { ChartDocument, GanttTask, IsoDate } from "@/gantt/model";
 import { TaskBar } from "@/gantt/TaskBar";
 
 export interface GanttChartProps {
   document: ChartDocument;
+  today?: IsoDate;
   mode: "editor" | "export";
   selectedTaskId: string | null;
   viewport?: ChartViewport;
@@ -84,7 +85,7 @@ function wrapTaskName(name: string, maximumWidth: number, fontSize: number, maxi
 
 export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function GanttChart(props, ref) {
   const document = withPreview(props.document, props.previewTask);
-  const today = currentLocalIsoDate();
+  const today = props.today ?? currentLocalIsoDate();
   const layout = calculateChartLayout(document, today, props.viewport);
   const { metrics } = layout;
   const gridBottom = layout.height - metrics.legendHeight;
