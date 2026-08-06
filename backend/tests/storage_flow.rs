@@ -74,6 +74,13 @@ fn loads_legacy_settings_without_a_timeline_range() {
 }
 
 #[test]
+fn omits_an_absent_timeline_range_when_serializing() {
+    let serialized = serde_json::to_value(sample()).unwrap();
+
+    assert!(serialized["settings"].get("timelineRange").is_none());
+}
+
+#[test]
 fn invalid_json_is_preserved_and_reported() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("chart.json");
