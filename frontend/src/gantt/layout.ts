@@ -1,6 +1,8 @@
-import { addVisibleDays, visibleDatesBetween } from "@/gantt/dateMath";
-import type { ChartDocument, GanttTask, IsoDate } from "@/gantt/model";
+import { visibleDatesBetween } from "@/gantt/dateMath";
+import type { ChartDocument, GanttTask, IsoDate, TimelineRange } from "@/gantt/model";
 import { estimateTextWidth } from "@/gantt/textMetrics";
+import { buildTimelineHeader, type TimelineHeaderModel } from "@/gantt/timelineHeader";
+import { rangeContainsDate, resolveTimelineRange, visibleDatesForTimelineRange } from "@/gantt/timelineRange";
 
 export { estimateTextWidth } from "@/gantt/textMetrics";
 
@@ -20,6 +22,9 @@ export interface TaskGeometry {
   width: number;
   height: number;
   isMarker: boolean;
+  isVisible: boolean;
+  startClipped: boolean;
+  endClipped: boolean;
 }
 
 export interface LegendItem {
@@ -28,7 +33,10 @@ export interface LegendItem {
 }
 
 export interface ChartLayout {
+  range: TimelineRange;
   visibleDates: IsoDate[];
+  header: TimelineHeaderModel;
+  todayX: number | null;
   tasks: TaskGeometry[];
   legend: LegendItem[];
   width: number;
@@ -85,7 +93,9 @@ function calculateMetrics(
   const dayWidth = positive((width - labelWidth) / Math.max(1, visibleDateCount));
   const headerHeight = positive(HEADER_HEIGHT * verticalScale);
   const legendHeight = legendCount === 0 ? 0 : positive(LEGEND_HEIGHT * verticalScale);
-  const rowHeight = positive((height - headerHeight - legendHeight) / taskSlots);
+  const availableTaskHeight = positive(height - headerHeight - legendHeight);
+  const preferredRowHeight = positive(ROW_HEIGHT * verticalScale);
+  const rowHeight = positive(Math.min(preferredRowHeight, availableTaskHeight / taskSlots));
   const barHeight = positive(Math.min(BAR_HEIGHT, rowHeight * 0.64));
   const taskLabelLines = rowHeight >= 36 ? 2 : 1;
   const legendSlotWidth = positive((width - padding * 2) / Math.max(1, legendCount));
@@ -123,12 +133,7 @@ function calculateMetrics(
       document.title,
       700,
     ),
-    dateFontSize: fittedFontSize(
-      Math.min(12, headerHeight * 0.25, 12 * verticalScale),
-      dayWidth,
-      "Sep 30",
-      500,
-    ),
+    dateFontSize: positive(Math.min(12, headerHeight * 0.25, 12 * verticalScale)),
     taskFontSize: fittedFontSize(
       Math.min(14, rowHeight * 0.42, 14 * verticalScale),
       labelWidth - padding * 2,
@@ -153,32 +158,13 @@ function calculateMetrics(
   };
 }
 
-function chartDateRange(document: ChartDocument, today: IsoDate): { start: IsoDate; end: IsoDate } {
-  if (document.tasks.length === 0) {
-    return {
-      start: addVisibleDays(today, -5, document.settings),
-      end: addVisibleDays(today, 5, document.settings),
-    };
-  }
-
-  return document.tasks.reduce(
-    (range, task) => ({
-      start: task.startDate < range.start ? task.startDate : range.start,
-      end: task.endDate > range.end ? task.endDate : range.end,
-    }),
-    { start: today, end: today },
-  );
-}
-
 export function calculateChartLayout(
   document: ChartDocument,
   today: IsoDate,
   viewport?: ChartViewport,
 ): ChartLayout {
-  const range = chartDateRange(document, today);
-  const start = addVisibleDays(range.start, -1, document.settings);
-  const end = addVisibleDays(range.end, 1, document.settings);
-  const visibleDates = visibleDatesBetween(start, end, document.settings);
+  const range = resolveTimelineRange(document, today);
+  const visibleDates = visibleDatesForTimelineRange(range, document.settings);
 
   const categories = new Set<string>();
   const legend = document.tasks.flatMap((task) => {
@@ -193,10 +179,45 @@ export function calculateChartLayout(
   };
   const target = viewport ?? naturalViewport;
   const metrics = calculateMetrics(document, visibleDates.length, legend.length, target);
+  const header = buildTimelineHeader({
+    range,
+    visibleDates,
+    dayWidth: metrics.dayWidth,
+    fontSize: metrics.dateFontSize,
+  });
+  const todayX = rangeContainsDate(range, today)
+    ? (() => {
+      const visibleIndex = visibleDates.indexOf(today);
+      if (visibleIndex >= 0) return metrics.labelWidth + (visibleIndex + 0.5) * metrics.dayWidth;
+      const seamIndex = visibleDates.findIndex((date) => date > today);
+      return metrics.labelWidth + (seamIndex === -1 ? visibleDates.length : seamIndex) * metrics.dayWidth;
+    })()
+    : null;
 
   const tasks = document.tasks.map((task, index): TaskGeometry => {
-    const includedDates = visibleDatesBetween(task.startDate, task.endDate, document.settings);
     const y = metrics.headerHeight + index * metrics.rowHeight + (metrics.rowHeight - metrics.barHeight) / 2;
+    const startClipped = task.startDate < range.startDate;
+    const endClipped = task.endDate > range.endDate;
+    const intersects = task.startDate <= range.endDate && task.endDate >= range.startDate;
+
+    if (!intersects) {
+      return {
+        id: task.id,
+        task,
+        x: metrics.labelWidth,
+        y,
+        width: 0,
+        height: metrics.barHeight,
+        isMarker: false,
+        isVisible: false,
+        startClipped,
+        endClipped,
+      };
+    }
+
+    const clippedStart = startClipped ? range.startDate : task.startDate;
+    const clippedEnd = endClipped ? range.endDate : task.endDate;
+    const includedDates = visibleDatesBetween(clippedStart, clippedEnd, document.settings);
 
     if (includedDates.length > 0) {
       const firstIndex = visibleDates.indexOf(includedDates[0]);
@@ -209,24 +230,37 @@ export function calculateChartLayout(
         width: (lastIndex - firstIndex + 1) * metrics.dayWidth,
         height: metrics.barHeight,
         isMarker: false,
+        isVisible: true,
+        startClipped,
+        endClipped,
       };
     }
 
-    const nextDateIndex = visibleDates.findIndex((date) => date > task.endDate);
+    const nextDateIndex = visibleDates.findIndex((date) => date > clippedEnd);
     const seamIndex = nextDateIndex === -1 ? visibleDates.length : nextDateIndex;
+    const timelineEnd = metrics.labelWidth + visibleDates.length * metrics.dayWidth;
     return {
       id: task.id,
       task,
-      x: metrics.labelWidth + seamIndex * metrics.dayWidth - metrics.markerWidth / 2,
+      x: Math.min(
+        timelineEnd - metrics.markerWidth,
+        Math.max(metrics.labelWidth, metrics.labelWidth + seamIndex * metrics.dayWidth - metrics.markerWidth / 2),
+      ),
       y,
       width: metrics.markerWidth,
       height: metrics.barHeight,
       isMarker: true,
+      isVisible: true,
+      startClipped,
+      endClipped,
     };
   });
 
   return {
+    range,
     visibleDates,
+    header,
+    todayX,
     tasks,
     legend,
     width: target.width,

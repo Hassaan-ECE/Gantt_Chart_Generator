@@ -23,6 +23,81 @@ const document: ChartDocument = {
 };
 
 describe("chart layout", () => {
+  it("uses a saved range exactly and hides today outside its calendar bounds", () => {
+    const rangeDocument: ChartDocument = {
+      ...document,
+      settings: {
+        ...document.settings,
+        timelineRange: { startDate: "2026-09-01", endDate: "2026-09-14" },
+      },
+    };
+
+    const layout = calculateChartLayout(rangeDocument, "2026-08-04");
+
+    expect(layout.range).toEqual({ startDate: "2026-09-01", endDate: "2026-09-14" });
+    expect(layout.visibleDates.at(0)).toBe("2026-09-01");
+    expect(layout.visibleDates.at(-1)).toBe("2026-09-14");
+    expect(layout.header.tier).toBe("detailed-days");
+    expect(layout.todayX).toBeNull();
+  });
+
+  it("keeps today in an auto-fitted layout and positions its marker", () => {
+    const layout = calculateChartLayout(document, "2026-08-04");
+
+    expect(layout.range.startDate).toBe("2026-08-03");
+    expect(layout.range.endDate).toBe("2026-08-11");
+    expect(layout.todayX).toBe(LABEL_WIDTH + DAY_WIDTH * 1.5);
+  });
+
+  it("clips task geometry to a custom weekday range while retaining every row", () => {
+    const clippedDocument: ChartDocument = {
+      ...document,
+      settings: { ...document.settings, timelineRange: { startDate: "2026-08-05", endDate: "2026-08-10" } },
+      tasks: [
+        { ...document.tasks[0], id: "before", startDate: "2026-08-01", endDate: "2026-08-04" },
+        { ...document.tasks[0], id: "left", startDate: "2026-08-03", endDate: "2026-08-06" },
+        { ...document.tasks[0], id: "right", startDate: "2026-08-07", endDate: "2026-08-12" },
+        { ...document.tasks[0], id: "both", startDate: "2026-08-03", endDate: "2026-08-12" },
+      ],
+    };
+
+    const layout = calculateChartLayout(clippedDocument, "2026-08-04");
+    const byId = (id: string) => layout.tasks.find((task) => task.id === id)!;
+
+    expect(layout.visibleDates).toEqual(["2026-08-05", "2026-08-06", "2026-08-07", "2026-08-10"]);
+    expect(byId("before")).toMatchObject({ x: LABEL_WIDTH, width: 0, isVisible: false, startClipped: true, endClipped: false });
+    expect(byId("left")).toMatchObject({ x: LABEL_WIDTH, width: DAY_WIDTH * 2, isVisible: true, startClipped: true, endClipped: false });
+    expect(byId("right")).toMatchObject({ x: LABEL_WIDTH + DAY_WIDTH * 2, width: DAY_WIDTH * 2, isVisible: true, startClipped: false, endClipped: true });
+    expect(byId("both")).toMatchObject({ x: LABEL_WIDTH, width: DAY_WIDTH * 4, isVisible: true, startClipped: true, endClipped: true });
+  });
+
+  it("uses compact rows for a short chart without stretching toward the legend", () => {
+    const layout = calculateChartLayout(document, "2026-08-04", { width: 1200, height: 640 });
+
+    expect(layout.rowHeight).toBeLessThanOrEqual(ROW_HEIGHT);
+    expect(layout.tasks[1].y - layout.tasks[0].y).toBe(layout.rowHeight);
+    expect(layout.tasks.at(-1)!.y + layout.tasks.at(-1)!.height).toBeLessThanOrEqual(
+      layout.height - layout.metrics.legendHeight,
+    );
+  });
+
+  it("shrinks forty rows below the preferred height to fit above the legend", () => {
+    const denseDocument: ChartDocument = {
+      ...document,
+      settings: { ...document.settings, timelineRange: { startDate: "2026-08-03", endDate: "2026-08-14" } },
+      tasks: Array.from({ length: 40 }, (_, index) => ({
+        ...document.tasks[0], id: `dense-${index}`,
+      })),
+    };
+
+    const layout = calculateChartLayout(denseDocument, "2026-08-04", { width: 900, height: 500 });
+
+    expect(layout.rowHeight).toBeLessThan(ROW_HEIGHT);
+    expect(layout.tasks.at(-1)!.y + layout.tasks.at(-1)!.height).toBeLessThanOrEqual(
+      layout.height - layout.metrics.legendHeight,
+    );
+  });
+
   it("fits every chart region into the requested viewport", () => {
     const viewport = { width: 1048, height: 586 };
     const layout = calculateChartLayout(document, "2026-08-04", viewport);
