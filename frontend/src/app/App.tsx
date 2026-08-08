@@ -299,7 +299,7 @@ export function App() {
               data-state={imagePhase === "error" && lastImageActionRef.current === "copy" ? "error" : undefined}
               title={imagePhase === "error" && lastImageActionRef.current === "copy"
                 ? imageError
-                : "Copy image for PowerPoint"}
+                : "Copy chart image"}
               onClick={() => requestImageAction("copy")}
             >
               <Copy aria-hidden="true" />
@@ -312,7 +312,7 @@ export function App() {
               data-state={imagePhase === "error" && lastImageActionRef.current === "export" ? "error" : undefined}
               title={imagePhase === "error" && lastImageActionRef.current === "export"
                 ? imageError
-                : "Export PowerPoint-ready PNG"}
+                : "Export chart PNG"}
               onClick={() => requestImageAction("export")}
             >
               <Download aria-hidden="true" />

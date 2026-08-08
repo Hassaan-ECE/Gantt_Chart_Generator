@@ -49,7 +49,7 @@ function expectTodayAlignedWith(svg: SVGSVGElement, dateLabel: string) {
 }
 
 describe("Copy image action", () => {
-  it("copies the PowerPoint-ready artifact without opening a save dialog", async () => {
+  it("copies the chart image without opening a save dialog", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -64,6 +64,18 @@ describe("Copy image action", () => {
     expect(announcement).toHaveTextContent("Copied");
     expect(announcement).toHaveClass("sr-only");
     expect(document.querySelector(".image-action-status")).toBeNull();
+  });
+
+  it("stages export SVG at the live chart viewport size", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Copy image" }));
+
+    expect(svgToPngArtifact).toHaveBeenCalledTimes(1);
+    const exportSvg = vi.mocked(svgToPngArtifact).mock.calls[0][0];
+    expect(exportSvg.getAttribute("width")).toBe("1200");
+    expect(exportSvg.getAttribute("height")).toBe("640");
   });
 
   it("retries a failed clipboard write through the same action", async () => {
