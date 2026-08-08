@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Gantt Chart Creator",
-        "width": 1440,
-        "height": 900,
+        "width": 1050,
+        "height": 650,
         "minWidth": 1050,
         "minHeight": 650,
         "center": true
