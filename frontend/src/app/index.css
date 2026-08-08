@@ -423,6 +423,18 @@ input {
   stroke-width: 1;
 }
 
+.gantt-week-band-label {
+  fill: #334155;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.gantt-week-divider {
+  stroke: #94a3b8;
+  stroke-width: 2;
+}
+
 .gantt-date-value,
 .gantt-task-name,
 .gantt-legend-label {

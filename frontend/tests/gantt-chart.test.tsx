@@ -59,7 +59,7 @@ describe("GanttChart", () => {
     ["2026-08-03", "2026-08-14", "detailed-days", "Aug 3"],
     ["2026-08-01", "2026-08-28", "compact-days", "08/03"],
     ["2026-08-01", "2026-10-31", "month-days", "August"],
-    ["2026-01-01", "2026-07-01", "month-weeks", "Week 1"],
+    ["2026-01-01", "2026-07-01", "month-weeks", "January"],
   ])("renders the %s through %s range with a semantic %s header", (startDate, endDate, tier, label) => {
     const chart = createStarterChart("2026-08-04");
     chart.settings.timelineRange = { startDate, endDate };
@@ -67,6 +67,57 @@ describe("GanttChart", () => {
 
     expect(container.querySelector(`.gantt-header[data-tier="${tier}"]`)).not.toBeNull();
     expect(screen.getByText(label)).toBeVisible();
+  });
+
+  it("renders week band labels and week dividers for multi-week ranges", () => {
+    const chart = {
+      ...createStarterChart("2026-08-05"),
+      settings: {
+        showSaturday: false,
+        showSunday: false,
+        timelineRange: { startDate: "2026-08-03", endDate: "2026-08-28" },
+      },
+    };
+    render(
+      <GanttChart
+        document={chart}
+        today="2026-08-05"
+        mode="export"
+        selectedTaskId={null}
+        viewport={{ width: 1200, height: 640 }}
+      />,
+    );
+
+    const weekLabels = document.querySelectorAll(".gantt-week-band-label");
+    expect(weekLabels.length).toBeGreaterThan(0);
+    expect(
+      Array.from(weekLabels).some(
+        (node) => node.textContent?.includes("Week of") || node.textContent?.includes("–"),
+      ),
+    ).toBe(true);
+    expect(document.querySelectorAll(".gantt-week-divider").length).toBeGreaterThan(0);
+  });
+
+  it("does not render week bands for detailed-days ranges", () => {
+    const chart = {
+      ...createStarterChart("2026-08-05"),
+      settings: {
+        showSaturday: false,
+        showSunday: false,
+        timelineRange: { startDate: "2026-08-03", endDate: "2026-08-14" },
+      },
+    };
+    render(
+      <GanttChart
+        document={chart}
+        today="2026-08-05"
+        mode="export"
+        selectedTaskId={null}
+        viewport={{ width: 1200, height: 640 }}
+      />,
+    );
+    expect(document.querySelectorAll(".gantt-week-band-label")).toHaveLength(0);
+    expect(document.querySelectorAll(".gantt-week-divider")).toHaveLength(0);
   });
 
   it("keeps outside task rows but omits their bars", () => {

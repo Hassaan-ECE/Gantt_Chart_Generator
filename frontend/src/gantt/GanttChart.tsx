@@ -126,10 +126,34 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
         {layout.header.gridLines.map((position) => (
           <line key={position} className="gantt-grid-line" x1={timelineX(position)} y1={0} x2={timelineX(position)} y2={gridBottom} />
         ))}
+        {layout.header.weekBoundaryIndices.map((position) => (
+          <line
+            key={`week-div-${position}`}
+            className="gantt-week-divider"
+            x1={timelineX(position)}
+            y1={0}
+            x2={timelineX(position)}
+            y2={gridBottom}
+          />
+        ))}
         {layout.header.bands.map((band) => (
           <g key={band.key} className="gantt-header-band">
             <line className="gantt-month-divider" x1={timelineX(band.startIndex)} y1={0} x2={timelineX(band.startIndex)} y2={metrics.headerHeight * 0.5} />
             <text className="gantt-header-band-label" x={timelineX((band.startIndex + band.endIndex) / 2)} y={metrics.headerHeight * 0.28} style={{ fontSize: metrics.dateFontSize }}>{band.label}</text>
+          </g>
+        ))}
+        {layout.header.weekBands.map((band) => (
+          <g key={band.key} className="gantt-week-band">
+            {band.label ? (
+              <text
+                className="gantt-week-band-label"
+                x={timelineX((band.startIndex + band.endIndex) / 2)}
+                y={metrics.headerHeight * (layout.header.bands.length > 0 ? 0.52 : 0.28)}
+                style={{ fontSize: metrics.dateFontSize }}
+              >
+                {band.label}
+              </text>
+            ) : null}
           </g>
         ))}
         {layout.header.labels.map((label) => layout.header.tier === "detailed-days" ? (
@@ -138,7 +162,23 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
             <tspan className="gantt-date-value" x={timelineX(label.position)} dy="1.35em">{label.secondaryLabel}</tspan>
           </text>
         ) : (
-          <text key={label.key} className="gantt-header-label" x={timelineX(label.position)} y={metrics.headerHeight * (layout.header.bands.length > 0 ? 0.78 : 0.62)} style={{ fontSize: metrics.dateFontSize }}>{label.label}</text>
+          <text
+            key={label.key}
+            className="gantt-header-label"
+            x={timelineX(label.position)}
+            y={metrics.headerHeight * (
+              layout.header.bands.length > 0 && layout.header.weekBands.length > 0
+                ? 0.82
+                : layout.header.weekBands.length > 0
+                  ? 0.72
+                  : layout.header.bands.length > 0
+                    ? 0.78
+                    : 0.62
+            )}
+            style={{ fontSize: metrics.dateFontSize }}
+          >
+            {label.label}
+          </text>
         ))}
       </g>
       <line className="gantt-grid-line" x1={0} y1={metrics.headerHeight} x2={layout.width} y2={metrics.headerHeight} />
