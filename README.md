@@ -22,9 +22,9 @@ The desktop window opens at **1050×650**, which is also the minimum size; you c
 `cd backend && cargo test && cargo clippy --all-targets --all-features -- -D warnings`
 
 ## Editing
-Edit the chart title directly in the chart. Drag a bar to move it, drag either edge to resize it, and double-click it for exact dates. Click the blank chart area or press Escape to clear a selected bar. Category and color fields suggest values already used in the chart, while still accepting new values. Use Chart settings to show Saturday or Sunday independently.
+Edit the chart title directly in the chart. Click a task name in the left column to rename it inline (Enter commits, Escape cancels; a blank name restores the previous value). Drag a bar to move it, drag either edge to resize it, and double-click a bar to open the full task dialog for exact dates and other fields. Click the blank chart area or press Escape to clear a selected bar. Category and color fields suggest values already used in the chart, while still accepting new values. Use Chart settings to show Saturday or Sunday independently.
 
-Use the timeline control to choose the exact inclusive Start and End dates shown in the chart. The custom range is saved and reused by Copy Image and Export PNG. Auto-fit returns to a range derived from the tasks and today. Task names remain listed when their bars are outside the range; intersecting bars are clipped at the chart edges. Headers automatically change from detailed dates to numeric dates, month/day bands, and relative week labels as the selected span grows.
+Use the timeline control to choose the exact inclusive Start and End dates shown in the chart. The custom range is saved and reused by Copy Image and Export PNG. Auto-fit returns to a range derived from the tasks and today. Task names remain listed when their bars are outside the range; intersecting bars are clipped at the chart edges. Headers adapt as the selected span grows: detailed dates, compact numeric dates, and longer timelines with “Week of …” bands plus thicker vertical week-boundary lines.
 
 **Undo** and **Redo** (toolbar buttons, or Ctrl+Z / Ctrl+Y) reverse committed chart edits in the current session. History is in-memory only and clears when the app restarts.
 
