@@ -1,9 +1,6 @@
 const WINDOWS_INVALID_FILENAME_CHARACTERS = /[<>:"/\\|?*]/g;
 const PNG_EXTENSION = /(?:\.png)+$/i;
 const WINDOWS_RESERVED_BASENAME = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
-export const POWERPOINT_SLIDE_WIDTH = 1920;
-export const POWERPOINT_SLIDE_HEIGHT = 1080;
-export const POWERPOINT_SLIDE_MARGIN = 64;
 const SVG_PRESENTATION_PROPERTIES = [
   "alignment-baseline",
   "dominant-baseline",
@@ -38,28 +35,6 @@ function svgDimensions(source: SVGSVGElement): { width: number; height: number }
     throw new Error("Invalid SVG dimensions");
   }
   return { width, height };
-}
-
-export interface PowerPointPlacement {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export function calculatePowerPointPlacement(sourceWidth: number, sourceHeight: number): PowerPointPlacement {
-  const availableWidth = POWERPOINT_SLIDE_WIDTH - POWERPOINT_SLIDE_MARGIN * 2;
-  const availableHeight = POWERPOINT_SLIDE_HEIGHT - POWERPOINT_SLIDE_MARGIN * 2;
-  const fitScale = Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight);
-  const width = sourceWidth * fitScale;
-  const height = sourceHeight * fitScale;
-
-  return {
-    x: (POWERPOINT_SLIDE_WIDTH - width) / 2,
-    y: (POWERPOINT_SLIDE_HEIGHT - height) / 2,
-    width,
-    height,
-  };
 }
 
 export function sanitizeExportFilename(title: string): string {
@@ -134,7 +109,6 @@ export interface PngArtifact {
 export async function svgToPngArtifact(source: SVGSVGElement, scale = 2): Promise<PngArtifact> {
   const { width, height } = svgDimensions(source);
   if (!Number.isFinite(scale) || scale <= 0) throw new Error("Invalid SVG dimensions");
-  const placement = calculatePowerPointPlacement(width, height);
 
   const prepared = prepareExportSvg(source);
   const serialized = new XMLSerializer().serializeToString(prepared);
@@ -143,16 +117,16 @@ export async function svgToPngArtifact(source: SVGSVGElement, scale = 2): Promis
   try {
     const image = await loadSvgImage(url);
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(POWERPOINT_SLIDE_WIDTH * scale);
-    canvas.height = Math.round(POWERPOINT_SLIDE_HEIGHT * scale);
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Could not create PNG canvas context");
     context.scale(scale, scale);
     context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, POWERPOINT_SLIDE_WIDTH, POWERPOINT_SLIDE_HEIGHT);
+    context.fillRect(0, 0, width, height);
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    context.drawImage(image, placement.x, placement.y, placement.width, placement.height);
+    context.drawImage(image, 0, 0, width, height);
     const blob = await canvasToPngBlob(canvas);
     return { blob, bytes: new Uint8Array(await blob.arrayBuffer()) };
   } finally {

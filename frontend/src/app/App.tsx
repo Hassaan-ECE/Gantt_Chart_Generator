@@ -5,12 +5,7 @@ import { APP_DISPLAY_NAME } from "@/app/branding";
 import { GanttChart } from "@/gantt/GanttChart";
 import { useElementSize } from "@/gantt/useElementSize";
 import { addCalendarDays } from "@/gantt/dateMath";
-import {
-  POWERPOINT_SLIDE_HEIGHT,
-  POWERPOINT_SLIDE_MARGIN,
-  POWERPOINT_SLIDE_WIDTH,
-  svgToPngArtifact,
-} from "@/gantt/exportPng";
+import { svgToPngArtifact } from "@/gantt/exportPng";
 import type { GanttTask, TimelineRange } from "@/gantt/model";
 import { SettingsMenu } from "@/gantt/SettingsMenu";
 import { createStarterChart, currentLocalIsoDate } from "@/gantt/starterChart";
@@ -24,11 +19,6 @@ import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridg
 
 type ImageAction = "copy" | "export";
 type ImageActionPhase = "idle" | "preparing" | "copied" | "exported" | "error";
-
-const POWERPOINT_CHART_VIEWPORT = {
-  width: POWERPOINT_SLIDE_WIDTH - POWERPOINT_SLIDE_MARGIN * 2,
-  height: POWERPOINT_SLIDE_HEIGHT - POWERPOINT_SLIDE_MARGIN * 2,
-} as const;
 
 function createNewTask(startDate: string): GanttTask {
   return {
@@ -354,7 +344,7 @@ export function App() {
           )}
         </div>
       </section>
-      {imageRequest && (
+      {imageRequest && chartViewport.width > 0 && chartViewport.height > 0 && (
         <div
           aria-hidden="true"
           className="export-staging"
@@ -365,7 +355,7 @@ export function App() {
             today={today}
             mode="export"
             selectedTaskId={null}
-            viewport={POWERPOINT_CHART_VIEWPORT}
+            viewport={chartViewport}
           />
         </div>
       )}

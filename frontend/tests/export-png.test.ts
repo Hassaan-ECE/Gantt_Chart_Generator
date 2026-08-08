@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  POWERPOINT_SLIDE_HEIGHT,
-  POWERPOINT_SLIDE_MARGIN,
-  POWERPOINT_SLIDE_WIDTH,
-  calculatePowerPointPlacement,
   prepareExportSvg,
   sanitizeExportFilename,
   svgToPngBytes,
@@ -123,18 +119,15 @@ describe("PNG export preparation", () => {
     await expect(svgToPngBytes(document.querySelector("svg")!)).rejects.toThrow("Invalid SVG dimensions");
   });
 
-  it("shrinks a long timeline to fit inside the PowerPoint slide margins", () => {
-    const placement = calculatePowerPointPlacement(3584, 384);
-
-    expect(placement).toEqual({
-      x: POWERPOINT_SLIDE_MARGIN,
-      y: 444,
-      width: 1792,
-      height: 192,
-    });
+  it("does not export PowerPoint placement helpers for the default path", async () => {
+    const module = await import("@/gantt/exportPng");
+    expect(module).not.toHaveProperty("calculatePowerPointPlacement");
+    expect(module).not.toHaveProperty("POWERPOINT_SLIDE_WIDTH");
+    expect(module).not.toHaveProperty("POWERPOINT_SLIDE_HEIGHT");
+    expect(module).not.toHaveProperty("POWERPOINT_SLIDE_MARGIN");
   });
 
-  it("rasterizes onto a 2x 16:9 PowerPoint slide and returns the encoded PNG bytes", async () => {
+  it("rasterizes onto a 2x canvas matching the SVG size and returns the encoded PNG bytes", async () => {
     const environment = installRasterEnvironment();
     document.body.innerHTML = `<svg width="800" height="400"><text>Task</text></svg>`;
 
@@ -143,20 +136,15 @@ describe("PNG export preparation", () => {
     );
 
     const canvas = environment.toBlob.mock.instances[0] as HTMLCanvasElement;
-    expect(canvas.width).toBe(POWERPOINT_SLIDE_WIDTH * 2);
-    expect(canvas.height).toBe(POWERPOINT_SLIDE_HEIGHT * 2);
+    expect(canvas.width).toBe(1600);
+    expect(canvas.height).toBe(800);
     expect(environment.context.scale).toHaveBeenCalledWith(2, 2);
-    expect(environment.context.fillRect).toHaveBeenCalledWith(
-      0,
-      0,
-      POWERPOINT_SLIDE_WIDTH,
-      POWERPOINT_SLIDE_HEIGHT,
-    );
+    expect(environment.context.fillRect).toHaveBeenCalledWith(0, 0, 800, 400);
     const [, x, y, width, height] = environment.context.drawImage.mock.calls[0];
-    expect(x).toBeCloseTo(64);
-    expect(y).toBeCloseTo(92);
-    expect(width).toBeCloseTo(1792);
-    expect(height).toBeCloseTo(896);
+    expect(x).toBe(0);
+    expect(y).toBe(0);
+    expect(width).toBe(800);
+    expect(height).toBe(400);
     expect(environment.toBlob).toHaveBeenCalledWith(expect.any(Function), "image/png");
     expect(environment.revokeObjectUrl).toHaveBeenCalledExactlyOnceWith("blob:gantt-export");
   });

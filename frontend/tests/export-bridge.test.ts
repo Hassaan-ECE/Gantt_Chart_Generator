@@ -76,8 +76,8 @@ describe("PNG export bridge", () => {
     expect(exportSvg).toBeInstanceOf(SVGSVGElement);
     expect(exportSvg.closest("[aria-hidden='true']")).not.toBeNull();
     expect(exportSvg.querySelector("[data-testid='task-hit-target']")).toBeNull();
-    expect(exportSvg).toHaveAttribute("width", "1792");
-    expect(exportSvg).toHaveAttribute("height", "952");
+    expect(exportSvg).toHaveAttribute("width", "1200");
+    expect(exportSvg).toHaveAttribute("height", "640");
     expect(svgToPngArtifact).toHaveBeenCalledWith(exportSvg, 2);
     expect(await screen.findByText("PNG exported")).toBeVisible();
     expect(title).toHaveValue(titleBeforeExport);
