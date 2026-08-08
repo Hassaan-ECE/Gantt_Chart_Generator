@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, Copy, Download, Plus } from "lucide-react";
+import { CircleAlert, Copy, Download, Plus, Redo2, Undo2 } from "lucide-react";
 
 import { APP_DISPLAY_NAME } from "@/app/branding";
 import { GanttChart } from "@/gantt/GanttChart";
@@ -13,6 +13,7 @@ import { TaskEditorDialog } from "@/gantt/TaskEditorDialog";
 import { TimelineRangePicker } from "@/gantt/TimelineRangePicker";
 import { resolveTimelineRange } from "@/gantt/timelineRange";
 import { useAutosave } from "@/gantt/useAutosave";
+import { useDocumentHistory } from "@/gantt/useDocumentHistory";
 import { copyPngToClipboard } from "@/integrations/tauri/clipboardBridge";
 import { loadChart, saveChart } from "@/integrations/tauri/chartBridge";
 import { choosePngDestination, writePng } from "@/integrations/tauri/exportBridge";
@@ -32,7 +33,15 @@ function createNewTask(startDate: string): GanttTask {
 }
 
 export function App() {
-  const [document, setDocument] = useState(() => createStarterChart());
+  const {
+    document,
+    canUndo,
+    canRedo,
+    commitDocument,
+    replaceDocument,
+    undo,
+    redo,
+  } = useDocumentHistory(createStarterChart());
   const [today, setToday] = useState(currentLocalIsoDate);
   const [startupPhase, setStartupPhase] = useState<"loading" | "ready" | "error">("loading");
   const [startupError, setStartupError] = useState("");
@@ -85,7 +94,7 @@ export function App() {
     void loadChart()
       .then((loadedDocument) => {
         if (!active) return;
-        setDocument(loadedDocument ?? createStarterChart());
+        replaceDocument(loadedDocument ?? createStarterChart());
         setStartupPhase("ready");
       })
       .catch((error: unknown) => {
@@ -111,12 +120,40 @@ export function App() {
     return () => globalThis.document.removeEventListener("keydown", clearSelection);
   }, [dialogMode]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isField =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        target?.isContentEditable === true;
+      if (isField) return;
+
+      const key = event.key.toLowerCase();
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) return;
+
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+        return;
+      }
+      if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo]);
+
   const resetToStarterChart = async () => {
     const starterDocument = createStarterChart();
     setResetting(true);
     try {
       await saveChart(starterDocument);
-      setDocument(starterDocument);
+      commitDocument(starterDocument);
       setStartupError("");
       setStartupPhase("ready");
     } catch (error) {
@@ -127,7 +164,7 @@ export function App() {
   };
 
   const commitTask = (task: GanttTask) => {
-    setDocument((currentDocument) => ({
+    commitDocument((currentDocument) => ({
       ...currentDocument,
       tasks: currentDocument.tasks.map((currentTask) => (currentTask.id === task.id ? task : currentTask)),
     }));
@@ -139,7 +176,7 @@ export function App() {
   };
 
   const changeTimelineRange = (timelineRange: TimelineRange | undefined) => {
-    setDocument((current) => {
+    commitDocument((current) => {
       const settings = { ...current.settings };
       if (timelineRange) settings.timelineRange = timelineRange;
       else delete settings.timelineRange;
@@ -162,7 +199,7 @@ export function App() {
   };
 
   const saveTask = (task: GanttTask) => {
-    setDocument((currentDocument) => ({
+    commitDocument((currentDocument) => ({
       ...currentDocument,
       tasks: dialogMode === "create"
         ? [...currentDocument.tasks, task]
@@ -173,7 +210,7 @@ export function App() {
   };
 
   const deleteTask = (taskId: string) => {
-    setDocument((currentDocument) => ({
+    commitDocument((currentDocument) => ({
       ...currentDocument,
       tasks: currentDocument.tasks.filter((task) => task.id !== taskId),
     }));
@@ -290,6 +327,28 @@ export function App() {
             customRange={document.settings.timelineRange}
             onChange={changeTimelineRange}
           />
+          <div className="toolbar-icon-group" role="group" aria-label="Edit history">
+            <button
+              type="button"
+              className="icon-action"
+              aria-label="Undo"
+              title="Undo"
+              disabled={!canUndo}
+              onClick={undo}
+            >
+              <Undo2 aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-action"
+              aria-label="Redo"
+              title="Redo"
+              disabled={!canRedo}
+              onClick={redo}
+            >
+              <Redo2 aria-hidden="true" />
+            </button>
+          </div>
           <div className="toolbar-icon-group" role="group" aria-label="Chart image actions">
             <button
               type="button"
@@ -320,7 +379,7 @@ export function App() {
           </div>
           <SettingsMenu
             settings={document.settings}
-            onChange={(settings) => setDocument((currentDocument) => ({ ...currentDocument, settings }))}
+            onChange={(settings) => commitDocument((currentDocument) => ({ ...currentDocument, settings }))}
           />
         </div>
       </header>
@@ -339,7 +398,7 @@ export function App() {
               onPreviewTask={setPreviewTask}
               onCommitTask={commitTask}
               onClearSelection={() => setSelectedTaskId(null)}
-              onTitleCommit={(title) => setDocument((currentDocument) => ({ ...currentDocument, title }))}
+              onTitleCommit={(title) => commitDocument((currentDocument) => ({ ...currentDocument, title }))}
             />
           )}
         </div>
