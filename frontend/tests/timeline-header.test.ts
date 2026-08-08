@@ -72,15 +72,16 @@ describe("timeline headers", () => {
     }
   });
 
-  it("uses chart-relative weeks and thins them at narrow widths", () => {
+  it("uses calendar week bands for long month-weeks ranges and fits labels", () => {
     const range = { startDate: "2026-01-15", endDate: "2026-10-15" };
     const visibleDates = visibleDatesBetween(range.startDate, range.endDate, weekdays);
     const header = buildTimelineHeader({ range, visibleDates, dayWidth: 2, fontSize: 11 });
 
     expect(header.tier).toBe("month-weeks");
-    expect(header.labels[0].label).toBe("Week 1");
-    expect(header.labels.some((label) => label.label === "Week 2")).toBe(false);
-    expect(header.gridLines.length).toBeGreaterThan(header.labels.length);
+    expect(header.weekBands.length).toBeGreaterThan(0);
+    expect(header.weekBoundaryIndices.length).toBeGreaterThan(0);
+    const labeled = header.weekBands.filter((band) => band.label);
+    expect(labeled.length).toBeLessThanOrEqual(header.weekBands.length);
   });
 
   it("keeps both lines for a two-week view", () => {
@@ -89,5 +90,59 @@ describe("timeline headers", () => {
     const header = buildTimelineHeader({ range, visibleDates, dayWidth: 60, fontSize: 11 });
 
     expect(header.labels[0]).toMatchObject({ label: "Mon", secondaryLabel: "Aug 3" });
+  });
+
+  it("builds Monday calendar week bands with Week of labels on compact-days", () => {
+    // 2026-08-03 is Monday; weekends hidden → visible Mon–Fri only
+    const range = { startDate: "2026-08-03", endDate: "2026-08-21" };
+    const visibleDates = visibleDatesBetween(range.startDate, range.endDate, weekdays);
+    const header = buildTimelineHeader({ range, visibleDates, dayWidth: 40, fontSize: 11 });
+
+    expect(header.tier).toBe("compact-days");
+    expect(header.weekBands.length).toBeGreaterThanOrEqual(2);
+    expect(header.weekBands[0].label).toMatch(/^Week of /);
+    // First visible week Mon Aug 3 – Fri Aug 7
+    expect(header.weekBands[0].label).toContain("Aug 3");
+    expect(header.weekBands[0].label).toContain("Aug 7");
+    expect(header.weekBoundaryIndices.length).toBeGreaterThan(0);
+    // detailed day labels still present
+    expect(header.labels.length).toBeGreaterThan(0);
+  });
+
+  it("omits week bands on detailed-days", () => {
+    const range = { startDate: "2026-08-03", endDate: "2026-08-14" };
+    const visibleDates = visibleDatesBetween(range.startDate, range.endDate, weekdays);
+    const header = buildTimelineHeader({ range, visibleDates, dayWidth: 60, fontSize: 11 });
+
+    expect(header.tier).toBe("detailed-days");
+    expect(header.weekBands).toEqual([]);
+    expect(header.weekBoundaryIndices).toEqual([]);
+  });
+
+  it("uses Week of labels for month-weeks instead of only Week N", () => {
+    const range = { startDate: "2026-01-15", endDate: "2026-10-15" };
+    const visibleDates = visibleDatesBetween(range.startDate, range.endDate, weekdays);
+    const header = buildTimelineHeader({ range, visibleDates, dayWidth: 8, fontSize: 11 });
+
+    expect(header.tier).toBe("month-weeks");
+    expect(header.weekBands.length).toBeGreaterThan(0);
+    expect(
+      header.weekBands[0].label === ""
+        || header.weekBands[0].label.startsWith("Week of ")
+        || header.weekBands[0].label.startsWith("W")
+        || /–/.test(header.weekBands[0].label),
+    ).toBe(true);
+  });
+
+  it("falls back to a short week label when the band is narrow", () => {
+    const range = { startDate: "2026-08-03", endDate: "2026-08-28" };
+    const visibleDates = visibleDatesBetween(range.startDate, range.endDate, weekdays);
+    const header = buildTimelineHeader({ range, visibleDates, dayWidth: 2, fontSize: 11 });
+
+    for (const band of header.weekBands) {
+      if (!band.label) continue;
+      expect(estimateTextWidth(band.label, 11, 600) + 8)
+        .toBeLessThanOrEqual((band.endIndex - band.startIndex) * 2 + 0.01);
+    }
   });
 });

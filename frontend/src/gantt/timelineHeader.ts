@@ -1,4 +1,4 @@
-import { addCalendarMonths, calendarDayDifference } from "@/gantt/dateMath";
+import { addCalendarDays, addCalendarMonths, calendarDayDifference } from "@/gantt/dateMath";
 import type { IsoDate, TimelineRange } from "@/gantt/model";
 import { estimateTextWidth } from "@/gantt/textMetrics";
 
@@ -6,7 +6,14 @@ export type TimelineHeaderTier = "detailed-days" | "compact-days" | "month-days"
 
 export interface TimelineHeaderBand { key: string; label: string; startIndex: number; endIndex: number; }
 export interface TimelineHeaderLabel { key: string; label: string; secondaryLabel?: string; position: number; }
-export interface TimelineHeaderModel { tier: TimelineHeaderTier; bands: TimelineHeaderBand[]; labels: TimelineHeaderLabel[]; gridLines: number[]; }
+export interface TimelineHeaderModel {
+  tier: TimelineHeaderTier;
+  bands: TimelineHeaderBand[];
+  weekBands: TimelineHeaderBand[];
+  weekBoundaryIndices: number[];
+  labels: TimelineHeaderLabel[];
+  gridLines: number[];
+}
 export interface BuildTimelineHeaderOptions { range: TimelineRange; visibleDates: IsoDate[]; dayWidth: number; fontSize: number; }
 
 const weekdayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
@@ -67,6 +74,60 @@ function buildMonthBands(range: TimelineRange, visibleDates: IsoDate[], dayWidth
   return bands;
 }
 
+/** ISO date of the Monday of the calendar week containing `date` (UTC). */
+function mondayWeekKey(date: IsoDate): string {
+  const day = dateAtMidnight(date);
+  const weekday = day.getUTCDay(); // 0 Sun … 6 Sat
+  const daysFromMonday = (weekday + 6) % 7;
+  return addCalendarDays(date, -daysFromMonday);
+}
+
+function formatWeekOfLabel(first: IsoDate, last: IsoDate): string {
+  const left = monthDayFormatter.format(dateAtMidnight(first));
+  const right = monthDayFormatter.format(dateAtMidnight(last));
+  if (first === last) return `Week of ${left}`;
+  return `Week of ${left} – ${right}`;
+}
+
+function formatConciseWeekRange(first: IsoDate, last: IsoDate): string {
+  if (first === last) return monthDayFormatter.format(dateAtMidnight(first));
+  return `${monthDayFormatter.format(dateAtMidnight(first))} – ${monthDayFormatter.format(dateAtMidnight(last))}`;
+}
+
+function buildWeekBands(visibleDates: IsoDate[], dayWidth: number, fontSize: number): TimelineHeaderBand[] {
+  if (visibleDates.length === 0) return [];
+  const bands: TimelineHeaderBand[] = [];
+  let startIndex = 0;
+  let ordinal = 1;
+  while (startIndex < visibleDates.length) {
+    const key = mondayWeekKey(visibleDates[startIndex]);
+    let endIndex = startIndex + 1;
+    while (endIndex < visibleDates.length && mondayWeekKey(visibleDates[endIndex]) === key) {
+      endIndex += 1;
+    }
+    const first = visibleDates[startIndex];
+    const last = visibleDates[endIndex - 1];
+    const width = (endIndex - startIndex) * dayWidth;
+    const full = formatWeekOfLabel(first, last);
+    const concise = formatConciseWeekRange(first, last);
+    const ultra = `W${ordinal}`;
+    let label = "";
+    if (estimateTextWidth(full, fontSize, 600) + BAND_LABEL_GAP <= width) label = full;
+    else if (estimateTextWidth(concise, fontSize, 600) + BAND_LABEL_GAP <= width) label = concise;
+    else if (estimateTextWidth(ultra, fontSize, 600) + BAND_LABEL_GAP <= width) label = ultra;
+    bands.push({ key: `week-${key}`, label, startIndex, endIndex });
+    startIndex = endIndex;
+    ordinal += 1;
+  }
+  return bands;
+}
+
+function weekBoundaryIndicesFromBands(weekBands: TimelineHeaderBand[]): number[] {
+  return [...new Set(weekBands.map((band) => band.startIndex).filter((index) => index > 0))].sort(
+    (a, b) => a - b,
+  );
+}
+
 function sortedGridLines(lines: number[], count: number): number[] {
   return [...new Set([0, count, ...lines])].sort((left, right) => left - right);
 }
@@ -76,26 +137,54 @@ export function buildTimelineHeader({ range, visibleDates, dayWidth, fontSize }:
   const dateGridLines = Array.from({ length: visibleDates.length + 1 }, (_, index) => index);
   const monthBands = buildMonthBands(range, visibleDates, dayWidth, fontSize);
   const monthGridLines = monthBands.flatMap((band) => [band.startIndex, band.endIndex]);
+
   if (tier === "detailed-days") {
     const labels = thinLabels(visibleDates.map((date, index) => ({ key: date, label: weekdayFormatter.format(dateAtMidnight(date)), secondaryLabel: monthDayFormatter.format(dateAtMidnight(date)), position: index + 0.5 })), dayWidth, fontSize);
-    return { tier, bands: [], labels, gridLines: sortedGridLines(dateGridLines, visibleDates.length) };
+    return {
+      tier,
+      bands: [],
+      weekBands: [],
+      weekBoundaryIndices: [],
+      labels,
+      gridLines: sortedGridLines(dateGridLines, visibleDates.length),
+    };
   }
+
+  const weekBands = buildWeekBands(visibleDates, dayWidth, fontSize);
+  const weekBoundaryIndices = weekBoundaryIndicesFromBands(weekBands);
+  const weekGridLines = weekBands.flatMap((band) => [band.startIndex, band.endIndex]);
+
   if (tier === "compact-days") {
     const labels = thinLabels(visibleDates.map((date, index) => ({ key: date, label: `${date.slice(5, 7)}/${date.slice(8, 10)}`, position: index + 0.5 })), dayWidth, fontSize);
-    return { tier, bands: [], labels, gridLines: sortedGridLines(dateGridLines, visibleDates.length) };
+    return {
+      tier,
+      bands: [],
+      weekBands,
+      weekBoundaryIndices,
+      labels,
+      gridLines: sortedGridLines([...dateGridLines, ...weekGridLines], visibleDates.length),
+    };
   }
+
   if (tier === "month-days") {
     const labels = thinLabels(visibleDates.map((date, index) => ({ key: date, label: String(Number(date.slice(8, 10))), position: index + 0.5 })), dayWidth, fontSize);
-    return { tier, bands: monthBands, labels, gridLines: sortedGridLines([...dateGridLines, ...monthGridLines], visibleDates.length) };
+    return {
+      tier,
+      bands: monthBands,
+      weekBands,
+      weekBoundaryIndices,
+      labels,
+      gridLines: sortedGridLines([...dateGridLines, ...monthGridLines, ...weekGridLines], visibleDates.length),
+    };
   }
-  const weeks = new Map<number, { startIndex: number; endIndex: number }>();
-  visibleDates.forEach((date, index) => {
-    const week = Math.floor(calendarDayDifference(range.startDate, date) / 7);
-    const group = weeks.get(week);
-    if (group) group.endIndex = index + 1;
-    else weeks.set(week, { startIndex: index, endIndex: index + 1 });
-  });
-  const labels = thinLabels([...weeks.entries()].map(([week, group]) => ({ key: `week-${week + 1}`, label: `Week ${week + 1}`, position: (group.startIndex + group.endIndex) / 2 })), dayWidth, fontSize);
-  const weekGridLines = [...weeks.values()].flatMap((group) => [group.startIndex, group.endIndex]);
-  return { tier, bands: monthBands, labels, gridLines: sortedGridLines([...monthGridLines, ...weekGridLines], visibleDates.length) };
+
+  // month-weeks: week identity lives in weekBands; no day-style labels
+  return {
+    tier,
+    bands: monthBands,
+    weekBands,
+    weekBoundaryIndices,
+    labels: [],
+    gridLines: sortedGridLines([...monthGridLines, ...weekGridLines], visibleDates.length),
+  };
 }
