@@ -105,7 +105,7 @@ export function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [replaceDocument]);
 
   useEffect(() => {
     if (startupPhase === "ready") setAutosaveEnabled(true);
