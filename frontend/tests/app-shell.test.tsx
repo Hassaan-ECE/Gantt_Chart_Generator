@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -162,10 +162,11 @@ describe("App shell", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: "Add task" }));
-    expect(screen.getByLabelText("Task name")).toHaveValue("New task");
-    expect(screen.getByLabelText("Start date")).toHaveValue("2026-08-04");
-    expect(screen.getByLabelText("End date")).toHaveValue("2026-08-06");
-    await user.click(screen.getByRole("button", { name: "Save task" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Task name")).toHaveValue("New task");
+    expect(within(dialog).getByLabelText("Start date")).toHaveValue("2026-08-04");
+    expect(within(dialog).getByLabelText("End date")).toHaveValue("2026-08-06");
+    await user.click(within(dialog).getByRole("button", { name: "Save task" }));
     await act(async () => vi.advanceTimersByTimeAsync(300));
 
     expect(saveChart).toHaveBeenLastCalledWith(expect.objectContaining({

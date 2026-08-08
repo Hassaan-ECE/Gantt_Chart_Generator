@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GanttChart } from "@/gantt/GanttChart";
@@ -288,5 +289,46 @@ describe("GanttChart", () => {
     fireEvent.doubleClick(screen.getAllByTestId("task-bar")[0]);
 
     expect(onEditTask).toHaveBeenCalledWith(chart.tasks[0].id);
+  });
+
+  it("renames a task when the inline task name is committed", async () => {
+    const user = userEvent.setup();
+    const onCommitTask = vi.fn();
+    const chart = createStarterChart("2026-08-05");
+    render(
+      <GanttChart
+        document={chart}
+        today="2026-08-05"
+        mode="editor"
+        selectedTaskId={null}
+        viewport={{ width: 1200, height: 640 }}
+        onCommitTask={onCommitTask}
+      />,
+    );
+
+    const inputs = screen.getAllByRole("textbox", { name: "Task name" });
+    await user.click(inputs[0]);
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], "Renamed assembly{Enter}");
+
+    expect(onCommitTask).toHaveBeenCalledWith(expect.objectContaining({
+      id: chart.tasks[0].id,
+      name: "Renamed assembly",
+    }));
+  });
+
+  it("exports task names as text without inline inputs", () => {
+    const chart = createStarterChart("2026-08-05");
+    render(
+      <GanttChart
+        document={chart}
+        today="2026-08-05"
+        mode="export"
+        selectedTaskId={null}
+        viewport={{ width: 1200, height: 640 }}
+      />,
+    );
+    expect(screen.queryByRole("textbox", { name: "Task name" })).toBeNull();
+    expect(document.querySelector(".gantt-task-name")?.textContent).toContain(chart.tasks[0].name);
   });
 });

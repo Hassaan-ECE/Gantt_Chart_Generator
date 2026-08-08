@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,10 +51,12 @@ describe("complete editor flow", () => {
     expect(await screen.findByLabelText("Gantt chart workspace")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Add task" }));
-    await user.clear(screen.getByLabelText("Task name"));
-    await user.type(screen.getByLabelText("Task name"), "Prepare weekly review");
-    await user.click(screen.getByRole("button", { name: "Save task" }));
-    expect(screen.getByText("Prepare weekly review")).toBeVisible();
+    const dialog = screen.getByRole("dialog");
+    const nameField = within(dialog).getByLabelText("Task name");
+    await user.clear(nameField);
+    await user.type(nameField, "Prepare weekly review");
+    await user.click(within(dialog).getByRole("button", { name: "Save task" }));
+    expect(screen.getByDisplayValue("Prepare weekly review")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Chart settings" }));
     await user.click(screen.getByRole("checkbox", { name: "Show Saturday" }));

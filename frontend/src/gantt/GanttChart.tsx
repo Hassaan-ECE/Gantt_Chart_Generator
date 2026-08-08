@@ -2,6 +2,7 @@ import { forwardRef } from "react";
 
 import { currentLocalIsoDate } from "@/gantt/starterChart";
 import { InlineChartTitle } from "@/gantt/InlineChartTitle";
+import { InlineTaskName } from "@/gantt/InlineTaskName";
 import { calculateChartLayout, estimateTextWidth, type ChartViewport } from "@/gantt/layout";
 import type { ChartDocument, GanttTask, IsoDate } from "@/gantt/model";
 import { TaskBar } from "@/gantt/TaskBar";
@@ -195,24 +196,41 @@ export const GanttChart = forwardRef<SVGSVGElement, GanttChartProps>(function Ga
 
         return (
           <g key={geometry.id} data-testid="task-row">
-          <text
-            className="gantt-task-name"
-            x={metrics.padding}
-            y={taskNameY}
-            style={{ fontSize: metrics.taskFontSize, fontWeight: 700 }}
-          >
-            {taskNameLines.map((line, lineIndex) => (
-              <tspan
-                key={`${geometry.id}-${lineIndex}`}
-                x={metrics.padding}
-                dy={lineIndex === 0 ? 0 : lineHeight}
-                textLength={Math.min(taskNameWidth, estimateTextWidth(line, metrics.taskFontSize, 700))}
-                lengthAdjust="spacingAndGlyphs"
-              >
-                {line}
-              </tspan>
-            ))}
-          </text>
+          {props.mode === "editor" && props.onCommitTask ? (
+            <foreignObject
+              data-editor-only="true"
+              data-testid="task-name-editor"
+              x={metrics.padding}
+              y={geometry.y}
+              width={taskNameWidth}
+              height={Math.max(0.01, metrics.rowHeight)}
+            >
+              <InlineTaskName
+                value={geometry.task.name}
+                onCommit={(name) => props.onCommitTask?.({ ...geometry.task, name })}
+                style={{ fontSize: metrics.taskFontSize, fontWeight: 700 }}
+              />
+            </foreignObject>
+          ) : (
+            <text
+              className="gantt-task-name"
+              x={metrics.padding}
+              y={taskNameY}
+              style={{ fontSize: metrics.taskFontSize, fontWeight: 700 }}
+            >
+              {taskNameLines.map((line, lineIndex) => (
+                <tspan
+                  key={`${geometry.id}-${lineIndex}`}
+                  x={metrics.padding}
+                  dy={lineIndex === 0 ? 0 : lineHeight}
+                  textLength={Math.min(taskNameWidth, estimateTextWidth(line, metrics.taskFontSize, 700))}
+                  lengthAdjust="spacingAndGlyphs"
+                >
+                  {line}
+                </tspan>
+              ))}
+            </text>
+          )}
           {geometry.isVisible && (
             <TaskBar
               geometry={geometry}

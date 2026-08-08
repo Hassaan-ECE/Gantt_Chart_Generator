@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -55,13 +55,15 @@ describe("document undo and redo", () => {
 
     await screen.findByRole("button", { name: "Add task" });
     await user.click(screen.getByRole("button", { name: "Add task" }));
-    await user.clear(screen.getByLabelText("Task name"));
-    await user.type(screen.getByLabelText("Task name"), "Prepare weekly review");
-    await user.click(screen.getByRole("button", { name: "Save task" }));
-    expect(screen.getByText("Prepare weekly review")).toBeVisible();
+    const dialog = screen.getByRole("dialog");
+    const nameField = within(dialog).getByLabelText("Task name");
+    await user.clear(nameField);
+    await user.type(nameField, "Prepare weekly review");
+    await user.click(within(dialog).getByRole("button", { name: "Save task" }));
+    expect(screen.getByDisplayValue("Prepare weekly review")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Undo" }));
-    expect(screen.queryByText("Prepare weekly review")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Prepare weekly review")).not.toBeInTheDocument();
   });
 
   it("does not document-undo with Ctrl+Z while the chart title field is focused", async () => {
@@ -76,5 +78,20 @@ describe("document undo and redo", () => {
     await user.keyboard("{Control>}z{/Control}");
 
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+  });
+
+  it("undoes an inline task rename", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByLabelText("Gantt chart workspace");
+    const names = await screen.findAllByRole("textbox", { name: "Task name" });
+    const taskName = names[0];
+    const previous = (taskName as HTMLInputElement).value;
+    await user.click(taskName);
+    await user.clear(taskName);
+    await user.type(taskName, "Undoable rename{Enter}");
+    expect(taskName).toHaveValue("Undoable rename");
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getAllByRole("textbox", { name: "Task name" })[0]).toHaveValue(previous);
   });
 });
