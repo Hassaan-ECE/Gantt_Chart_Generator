@@ -13,7 +13,7 @@ Run these commands from the project root:
 `bun install`
 `bun run desktop`
 
-The first desktop launch compiles the Rust backend and can take several minutes; later launches are much faster.
+The desktop window opens at **1050×650**, which is also the minimum size; you can still resize the window larger. The first desktop launch compiles the Rust backend and can take several minutes; later launches are much faster.
 
 ## Verify
 `bun run test`
@@ -26,7 +26,9 @@ Edit the chart title directly in the chart. Drag a bar to move it, drag either e
 
 Use the timeline control to choose the exact inclusive Start and End dates shown in the chart. The custom range is saved and reused by Copy Image and Export PNG. Auto-fit returns to a range derived from the tasks and today. Task names remain listed when their bars are outside the range; intersecting bars are clipped at the chart edges. Headers automatically change from detailed dates to numeric dates, month/day bands, and relative week labels as the selected span grows.
 
+**Undo** and **Redo** (toolbar buttons, or Ctrl+Z / Ctrl+Y) reverse committed chart edits in the current session. History is in-memory only and clears when the app restarts.
+
 ## Storage and export
-The active chart auto-saves in the Tauri application-data folder. The adjacent Copy image and Export PNG icon buttons produce the same PowerPoint-ready 3840×2160 image. Copy image puts it directly on the system clipboard; Export PNG writes it after a native destination is chosen. The complete chart is scaled proportionally and centered inside a white 16:9 canvas, so long timelines shrink to fit without clipping.
+The active chart auto-saves in the Tauri application-data folder. The adjacent Copy image and Export PNG icon buttons produce the same PNG of the **chart workspace** at the on-screen size (2× pixel density for sharpness). They do not letterbox onto a fixed 16:9 / PowerPoint slide. Copy image puts the image on the system clipboard; Export PNG writes it after a native destination is chosen.
 
 The app currently manages one chart. Portable project loading and native PowerPoint file output are future capabilities.
